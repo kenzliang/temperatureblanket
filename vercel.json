@@ -1,0 +1,6 @@
+{
+  "crons": [{
+    "path": "/api/jobs/fetch-yesterday",
+    "schedule": "0 10 * * *"
+  }]
+}
