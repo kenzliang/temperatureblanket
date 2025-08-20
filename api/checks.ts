@@ -6,47 +6,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const d = (req.query.date as string) || new Date().toISOString().slice(0, 10);
 
     try {
-      // Direct join: always returns one row per person, even if no person_checks row yet
-      const { data, error } = await supaService
+      // 1) Get the fixed roster (always returns all people)
+      const { data: people, error: peopleErr } = await supaService
         .from('people')
-        .select(`
-          id,
-          name,
-          locations:location_id ( name ),
-          person_checks!left ( completed )
-        `)
-        .eq('person_checks.d', d)
+        .select('id,name,location_id,locations:location_id(name)')
         .order('name', { ascending: true });
 
-      if (error) throw error;
+      if (peopleErr) throw peopleErr;
 
-      // If person_checks row not present for a person on date d, Supabase won't include it in the above left join filter.
-      // So we need a second query without the filter and stitch results to ensure every person appears.
-      const { data: everyone, error: allErr } = await supaService
-        .from('people')
-        .select(`
-          id,
-          name,
-          locations:location_id ( name )
-        `)
-        .order('name', { ascending: true });
+      // 2) Get checks for that date
+      const { data: checks, error: checksErr } = await supaService
+        .from('person_checks')
+        .select('person_id,completed')
+        .eq('d', d);
 
-      if (allErr) throw allErr;
+      if (checksErr) throw checksErr;
 
-      // Build map from first query (people who have a row that day)
-      const hasRow = new Map<string, boolean>();
-      const completedMap = new Map<string, boolean>();
-      for (const row of data || []) {
-        hasRow.set(row.id, true);
-        completedMap.set(row.id, !!row.person_checks?.[0]?.completed);
-      }
+      // 3) Merge: default completed=false for everyone
+      const completedByPerson = new Map<string, boolean>();
+      for (const c of checks || []) completedByPerson.set(c.person_id, !!c.completed);
 
-      // Merge: ensure we return an entry for every person, defaulting completed=false
-      const merged = (everyone || []).map((p: any) => ({
+      const merged = (people || []).map((p: any) => ({
         personId: p.id,
         name: p.name,
-        location: p.locations?.name,
-        completed: completedMap.get(p.id) ?? false
+        location: p.locations?.name, // "Windham" | "Concord" | "Somerville" | "Quincy"
+        completed: completedByPerson.get(p.id) ?? false
       }));
 
       res.setHeader('Cache-Control', 'no-store');
