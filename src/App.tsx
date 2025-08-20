@@ -4,30 +4,52 @@ import { getChecks, getWeather, setCheck } from './api';
 import { yesterdayET } from './lib/date';
 import { LocationCard } from './components/LocationCard';
 
+type WeatherRow = {
+  location: string;   // e.g. "Windham"
+  state: string;      // e.g. "NH"
+  highTempF: number;
+  rained: boolean;
+  snowed: boolean;
+};
+
+type CheckApiRow = {
+  person: {
+    id: string;
+    name: string;
+    location: string | null; // "Windham" | "Concord" | "Somerville" | "Quincy"
+  };
+  completed: boolean;
+};
+
 export default function App() {
   const [date, setDate] = useState<string>(yesterdayET());
-  const [weather, setWeather] = useState<any[]>([]);
-  const [checks, setChecks] = useState<any[]>([]);
-  const [roster, setRoster] = useState<{ [loc: string]: { state: string; people: { id: string; name: string }[] } }>({});
+  const [weather, setWeather] = useState<WeatherRow[]>([]);
+  const [checks, setChecks] = useState<CheckApiRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Build roster from checks response once (has names + locations)
-  const checkMap = useMemo(() => {
-    const byLoc: any = {};
-    for (const c of checks) {
-      const loc = c.location;
-      byLoc[loc] ||= { state: '', people: [] };
-      byLoc[loc].people.push({ id: c.personId, name: c.name });
-    }
-    return byLoc;
-  }, [checks]);
+  // Index weather by "Location, ST"
+  const weatherByLoc = useMemo(() => {
+    const m: Record<string, WeatherRow> = {};
+    for (const w of weather) m[`${w.location}, ${w.state}`] = w;
+    return m;
+  }, [weather]);
 
+  // Card order: derive from weather rows (ensures known 4 cards)
+  const locations = useMemo(
+    () => weather.map(w => ({ name: w.location, state: w.state })),
+    [weather]
+  );
+
+  // For quick toggle lookups per card (location -> { personId: completed })
   const groupedChecks = useMemo(() => {
     const g: Record<string, Record<string, boolean>> = {};
     for (const c of checks) {
-      g[c.location] ||= {};
-      g[c.location][c.personId] = c.completed;
+      const loc = c.person?.location;
+      const pid = c.person?.id;
+      if (!loc || !pid) continue;
+      g[loc] ||= {};
+      g[loc][pid] = !!c.completed;
     }
     return g;
   }, [checks]);
@@ -35,40 +57,37 @@ export default function App() {
   useEffect(() => {
     let active = true;
     (async () => {
-      setLoading(true); setErr(null);
+      setLoading(true);
+      setErr(null);
       try {
         const [w, ch] = await Promise.all([getWeather(date), getChecks(date)]);
         if (!active) return;
-        setWeather(w);
-        setChecks(ch);
+        setWeather(w || []);
+        setChecks(ch || []);
       } catch (e: any) {
-        setErr(e.message || 'Failed to load');
+        setErr(e?.message || 'Failed to load');
       } finally {
         setLoading(false);
       }
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [date]);
 
   async function toggle(personId: string, completed: boolean) {
     try {
       await setCheck(date, personId, completed);
-      setChecks(prev => prev.map(c => c.personId === personId ? { ...c, completed } : c));
-    } catch (e: any) {
+      // optimistic update
+      setChecks(prev =>
+        prev.map(c =>
+          c.person.id === personId ? { ...c, completed } : c
+        )
+      );
+    } catch {
       alert('Failed to update');
     }
   }
-
-  const weatherByLoc = useMemo(() => {
-    const m: any = {};
-    for (const w of weather) m[`${w.location}, ${w.state}`] = w;
-    return m;
-  }, [weather]);
-
-  const locations = useMemo(() => {
-    // Derive location list from weather response order
-    return weather.map(w => ({ name: w.location, state: w.state }));
-  }, [weather]);
 
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6">
@@ -76,28 +95,56 @@ export default function App() {
         <h1 className="text-2xl font-bold">Weather Checks</h1>
         <div className="flex items-center gap-2">
           <label className="label">Date</label>
-          <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} />
+          <input
+            className="input"
+            type="date"
+            value={date}
+            onChange={e => setDate(e.target.value)}
+          />
         </div>
       </header>
 
       {err && <div className="text-red-600">{err}</div>}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {locations.map(loc => (
-          <LocationCard
-            key={`${loc.name}, ${loc.state}`}
-            name={loc.name}
-            state={loc.state}
-            weather={weatherByLoc[`${loc.location || loc.name}, ${loc.state}`]}
-            people={(checks.filter(c => c.location === loc.name)).map((c: any) => ({ id: c.personId, name: c.name }))}
-            checks={groupedChecks[loc.name] || {}}
-            onToggle={toggle}
-          />
-        ))}
+        {locations.map(loc => {
+          const key = `${loc.name}, ${loc.state}`;
+          const w = weatherByLoc[key];
+
+          // Build people array for this location from the checks API rows
+          const peopleForCard = checks
+            .filter(c => c.person?.location === loc.name)
+            .map(c => ({ id: c.person.id, name: c.person.name }));
+
+          // Build completion map for this card
+          const checksForCard = groupedChecks[loc.name] || {};
+
+          return (
+            <LocationCard
+              key={key}
+              name={loc.name}
+              state={loc.state}
+              weather={
+                w
+                  ? {
+                      highTempF: w.highTempF,
+                      rained: w.rained,
+                      snowed: w.snowed,
+                    }
+                  : undefined
+              }
+              people={peopleForCard}
+              checks={checksForCard}
+              onToggle={toggle}
+            />
+          );
+        })}
       </div>
 
       {loading && <div>Loading…</div>}
-      {!loading && weather.length === 0 && <div>No data for selected date.</div>}
+      {!loading && weather.length === 0 && (
+        <div>No data for selected date.</div>
+      )}
     </div>
   );
 }
