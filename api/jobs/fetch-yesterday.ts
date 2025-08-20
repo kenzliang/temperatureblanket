@@ -10,15 +10,25 @@ const LOCS = [
   { name: 'Quincy', state: 'MA', lat: 42.253, lon: -71.002 }
 ];
 
-function toDateETYesterday(): string {
+// Compute yesterday in America/New_York reliably
+function yesterdayInET(): string {
   const now = new Date();
-  const y = new Date(now);
-  y.setUTCDate(now.getUTCDate() - 1);
-  return y.toISOString().slice(0,10);
+  const etNow = new Date(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(now)
+  );
+  etNow.setDate(etNow.getDate() - 1);
+  const yyyy = etNow.getFullYear();
+  const mm = String(etNow.getMonth() + 1).padStart(2, '0');
+  const dd = String(etNow.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const d = (req.query.date as string) || toDateETYesterday();
+  const d = (req.query.date as string) || yesterdayInET();
+
   try {
     for (const loc of LOCS) {
       const url = new URL('https://api.open-meteo.com/v1/forecast');
@@ -45,23 +55,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Upsert location (idempotent by name+state)
       const { data: locRow } = await supaService
-        .from('locations').upsert({ name: loc.name, state: loc.state, lat: loc.lat, lon: loc.lon }, { onConflict: 'name' })
-        .select().single();
+        .from('locations')
+        .upsert(
+          { name: loc.name, state: loc.state, lat: loc.lat, lon: loc.lon },
+          { onConflict: 'name' }
+        )
+        .select()
+        .single();
 
       // Upsert weather
-      await supaService.from('daily_weather').upsert({
-        d,
-        location_id: locRow.id,
-        high_temp_f: highF,
-        precip_in: precipIN,
-        snowfall_cm: snowfallCM,
-        rained,
-        snowed,
-        raw
-      }, { onConflict: 'd,location_id' });
+      await supaService.from('daily_weather').upsert(
+        {
+          d,
+          location_id: locRow.id,
+          high_temp_f: highF,
+          precip_in: precipIN,
+          snowfall_cm: snowfallCM,
+          rained,
+          snowed,
+          raw
+        },
+        { onConflict: 'd,location_id' }
+      );
 
       // Ensure person_checks exist for all people in this location for date d
-      const { data: people } = await supaService.from('people').select('id').eq('location_id', locRow.id);
+      const { data: people } = await supaService
+        .from('people')
+        .select('id')
+        .eq('location_id', locRow.id);
+
       if (people && people.length) {
         const rows = people.map(p => ({ d, person_id: p.id, completed: false }));
         await supaService.from('person_checks').upsert(rows, { onConflict: 'd,person_id' });
