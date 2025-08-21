@@ -122,7 +122,7 @@ export default function App() {
     <div className="max-w-5xl mx-auto p-4 space-y-6">
       <header className="flex items-center justify-between">
         <h1 className="text-3xl font-extrabold text-gray-800 dark:text-white">
-          Weather Checks
+          Valerie's Temperature Blanket Project
         </h1>
         <div className="flex items-center gap-2">
           <label className="label">Date</label>

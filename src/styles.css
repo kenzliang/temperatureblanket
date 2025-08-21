@@ -2,44 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Page background + base text for both themes */
-body { @apply bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100; }
+/* --- Base (light) --- */
+@layer base {
+  html, body {
+    @apply min-h-screen;
+  }
 
-/* Give the page title a guaranteed high-contrast color in both themes */
-.page-title { @apply text-gray-900 dark:text-white; }
-
-/* Cards */
-.card {
-  @apply bg-white rounded-2xl shadow p-4 border border-gray-200
-         dark:bg-slate-800 dark:border-slate-700;
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
 }
 
-/* Badges: strong contrast in both themes */
-.badge {
-  @apply inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium border;
+/* --- Dark mode (media) --- */
+@media (prefers-color-scheme: dark) {
+  @layer base {
+    body {
+      @apply bg-slate-900 text-slate-100;
+    }
+  }
 }
 
-/* TRUE (Yes) -> solid green pill with white/dark text as needed */
-.badge.on {
-  @apply bg-green-600 text-white border-green-600
-         dark:bg-emerald-500 dark:text-slate-900 dark:border-emerald-500;
-}
-
-/* FALSE (No) -> neutral, but clearly legible */
-.badge.off {
-  @apply bg-gray-200 text-gray-800 border-gray-300
-         dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600;
-}
-
-.label { @apply text-sm text-gray-600 dark:text-slate-400; }
-
-.btn {
-  @apply inline-flex items-center justify-center px-3 py-2 rounded-lg
-         bg-gray-900 text-white hover:bg-black
-         dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white;
-}
-
-.input {
-  @apply border border-gray-300 rounded-lg px-3 py-2
-         dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100;
+@layer components {
+  .card {
+    @apply rounded-lg shadow-md p-4 bg-white dark:bg-gray-800 transition;
+  }
+  .card-header {
+    @apply font-semibold text-lg mb-2 text-gray-800 dark:text-gray-100;
+  }
+  .badge {
+    @apply inline-block px-2 py-1 text-xs font-medium rounded;
+  }
+  .badge-success {
+    @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
+  }
+  .badge-error {
+    @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200;
+  }
 }
