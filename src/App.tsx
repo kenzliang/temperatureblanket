@@ -15,68 +15,65 @@ type CheckApiRow = {
   person: {
     id: string;
     name: string;
-    location: string | null; // "Windham" | "Concord" | "Somerville" | "Quincy"
+    location: string | null;
   };
   completed: boolean;
 };
 
-/* ---------------- ET date helpers ---------------- */
+/* -------- ET helpers -------- */
 
-function todayInET(): string {
+function formatYMD(d: Date, tz = 'America/New_York'): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const y = parts.find(p => p.type === 'year')?.value;
+  const m = parts.find(p => p.type === 'month')?.value;
+  const da = parts.find(p => p.type === 'day')?.value;
+  return `${y}-${m}-${da}`;
+}
+
+function todayET(): string {
+  return formatYMD(new Date());
+}
+
+function yesterdayET(): string {
   const now = new Date();
-  const et = new Date(
-    new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(now)
-  );
-  const yyyy = et.getFullYear();
-  const mm = String(et.getMonth() + 1).padStart(2, '0');
-  const dd = String(et.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+  now.setDate(now.getDate() - 1);
+  return formatYMD(now);
 }
 
-function yesterdayInET(): string {
-  const t = new Date(todayInET());
-  t.setDate(t.getDate() - 1);
-  const yyyy = t.getFullYear();
-  const mm = String(t.getMonth() + 1).padStart(2, '0');
-  const dd = String(t.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+function yearStartET(): string {
+  const now = new Date();
+  const year = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+  }).format(now);
+  return `${year}-01-01`;
 }
 
-function yearStartInET(): string {
-  const t = new Date(todayInET());
-  const yyyy = t.getFullYear();
-  return `${yyyy}-01-01`;
-}
-
-/* ---------------- Component ---------------- */
+/* -------- Component -------- */
 
 export default function App() {
-  // Default to yesterday (ET)
-  const [date, setDate] = useState<string>(yesterdayInET());
+  const [date, setDate] = useState<string>(yesterdayET());
   const [weather, setWeather] = useState<WeatherRow[]>([]);
   const [checks, setChecks] = useState<CheckApiRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Index weather by "Location, ST"
   const weatherByLoc = useMemo(() => {
     const m: Record<string, WeatherRow> = {};
     for (const w of weather) m[`${w.location}, ${w.state}`] = w;
     return m;
   }, [weather]);
 
-  // Card order from weather rows
   const locations = useMemo(
     () => weather.map(w => ({ name: w.location, state: w.state })),
     [weather]
   );
 
-  // For quick completion lookups per card (location -> { personId: completed })
   const groupedChecks = useMemo(() => {
     const g: Record<string, Record<string, boolean>> = {};
     for (const c of checks) {
@@ -113,7 +110,6 @@ export default function App() {
   async function toggle(personId: string, completed: boolean) {
     try {
       await setCheck(date, personId, completed);
-      // optimistic update
       setChecks(prev =>
         prev.map(c => (c.person.id === personId ? { ...c, completed } : c))
       );
@@ -125,7 +121,7 @@ export default function App() {
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+        <h1 className="text-3xl font-extrabold text-gray-800 dark:text-white">
           Weather Checks
         </h1>
         <div className="flex items-center gap-2">
@@ -134,8 +130,8 @@ export default function App() {
             className="input"
             type="date"
             value={date}
-            min={yearStartInET()} // ✅ only current year's history
-            max={todayInET()}     // ✅ prevent future dates
+            min={yearStartET()}
+            max={todayET()}
             onChange={e => setDate(e.target.value)}
           />
         </div>
@@ -147,14 +143,10 @@ export default function App() {
         {locations.map(loc => {
           const key = `${loc.name}, ${loc.state}`;
           const w = weatherByLoc[key];
-
           const peopleForCard = checks
             .filter(c => c.person?.location === loc.name)
             .map(c => ({ id: c.person.id, name: c.person.name }));
-
           const checksForCard = groupedChecks[loc.name] || {};
-
-          // Safe temp render: only pass weather if highTempF is a finite number
           const weatherForCard =
             w && Number.isFinite(Number(w.highTempF))
               ? {
@@ -163,7 +155,6 @@ export default function App() {
                   snowed: w.snowed,
                 }
               : undefined;
-
           return (
             <LocationCard
               key={key}
