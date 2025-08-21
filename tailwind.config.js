@@ -1,6 +1,16 @@
 /** @type {import('tailwindcss').Config} */
-export default {
-  content: ["./index.html", "./src/**/*.{ts,tsx}"],
-  theme: { extend: {} },
-  plugins: []
-};
+module.exports = {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  darkMode: 'media', // use 'class' if you want manual toggling instead of system preference
+  theme: {
+    extend: {
+      colors: {
+        // You can add custom brand colors if needed
+      },
+    },
+  },
+  plugins: [],
+}

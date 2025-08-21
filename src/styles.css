@@ -2,35 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Adapt to system theme (Tailwind's default darkMode='media') */
-body { @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100; }
+/* Page background + base text for both themes */
+body { @apply bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100; }
 
-.card { 
-  @apply bg-white rounded-2xl shadow p-4 border border-gray-100
-         dark:bg-gray-800 dark:border-gray-700;
+/* Give the page title a guaranteed high-contrast color in both themes */
+.page-title { @apply text-gray-900 dark:text-white; }
+
+/* Cards */
+.card {
+  @apply bg-white rounded-2xl shadow p-4 border border-gray-200
+         dark:bg-slate-800 dark:border-slate-700;
 }
 
+/* Badges: strong contrast in both themes */
 .badge {
-  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm border;
+  @apply inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium border;
 }
-/* On = green pill; Off = neutral pill, both adapt */
-.badge.on {
-    @apply bg-green-600 text-white border-green-600 dark:bg-green-500 dark:text-gray-900 dark:border-green-500;
-  }
-  .badge.off {
-    @apply bg-gray-600/20 text-gray-300 border-gray-500/40 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600;
-  }
-  
 
-.label { @apply text-sm text-gray-600 dark:text-gray-400; }
+/* TRUE (Yes) -> solid green pill with white/dark text as needed */
+.badge.on {
+  @apply bg-green-600 text-white border-green-600
+         dark:bg-emerald-500 dark:text-slate-900 dark:border-emerald-500;
+}
+
+/* FALSE (No) -> neutral, but clearly legible */
+.badge.off {
+  @apply bg-gray-200 text-gray-800 border-gray-300
+         dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600;
+}
+
+.label { @apply text-sm text-gray-600 dark:text-slate-400; }
 
 .btn {
   @apply inline-flex items-center justify-center px-3 py-2 rounded-lg
          bg-gray-900 text-white hover:bg-black
-         dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200;
+         dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white;
 }
 
 .input {
   @apply border border-gray-300 rounded-lg px-3 py-2
-         dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100;
+         dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100;
 }
