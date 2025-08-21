@@ -15,6 +15,9 @@ export function LocationCard({
   checks: Record<string, boolean>;
   onToggle: (personId: string, completed: boolean) => void;
 }) {
+  const rainYes = weather?.rained === true;
+  const snowYes = weather?.snowed === true;
+
   return (
     <div className="card">
       <div className="flex items-center justify-between">
@@ -25,8 +28,24 @@ export function LocationCard({
           <span className="text-xl font-bold text-gray-900 dark:text-gray-100">
             {weather ? Math.round(weather.highTempF) : '—'}°F
           </span>
-          <span className={clsx('badge', weather?.rained ? 'on' : 'off')}>☔ Rain</span>
-          <span className={clsx('badge', weather?.snowed ? 'on' : 'off')}>❄ Snow</span>
+
+          {/* Rain badge */}
+          <span
+            className={clsx('badge', rainYes ? 'on' : 'off')}
+            title={rainYes ? 'It rained on this date' : 'No measurable rain on this date'}
+            aria-label={`Rain: ${rainYes ? 'Yes' : 'No'}`}
+          >
+            {rainYes ? '✓ Rain: Yes' : 'Rain: No'}
+          </span>
+
+          {/* Snow badge */}
+          <span
+            className={clsx('badge', snowYes ? 'on' : 'off')}
+            title={snowYes ? 'It snowed on this date' : 'No snow on this date'}
+            aria-label={`Snow: ${snowYes ? 'Yes' : 'No'}`}
+          >
+            {snowYes ? '✓ Snow: Yes' : 'Snow: No'}
+          </span>
         </div>
       </div>
 

@@ -14,10 +14,13 @@ body { @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100; }
   @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm border;
 }
 /* On = green pill; Off = neutral pill, both adapt */
-.badge.on  { @apply bg-green-50 text-green-700 border-green-200
-                    dark:bg-green-900 dark:text-green-200 dark:border-green-800; }
-.badge.off { @apply bg-gray-50  text-gray-600  border-gray-200
-                    dark:bg-gray-700  dark:text-gray-300  dark:border-gray-600; }
+.badge.on {
+    @apply bg-green-600 text-white border-green-600 dark:bg-green-500 dark:text-gray-900 dark:border-green-500;
+  }
+  .badge.off {
+    @apply bg-gray-600/20 text-gray-300 border-gray-500/40 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600;
+  }
+  
 
 .label { @apply text-sm text-gray-600 dark:text-gray-400; }
 

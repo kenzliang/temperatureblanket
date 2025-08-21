@@ -15,15 +15,16 @@ type CheckApiRow = {
   person: {
     id: string;
     name: string;
-    location: string | null;
+    location: string | null; // "Windham" | "Concord" | "Somerville" | "Quincy"
   };
   completed: boolean;
 };
 
-// Compute YYYY-MM-DD for "yesterday" in America/New_York
-function yesterdayInET(): string {
+/* ---------------- ET date helpers ---------------- */
+
+function todayInET(): string {
   const now = new Date();
-  const etToday = new Date(
+  const et = new Date(
     new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/New_York',
       year: 'numeric',
@@ -31,31 +32,51 @@ function yesterdayInET(): string {
       day: '2-digit',
     }).format(now)
   );
-  etToday.setDate(etToday.getDate() - 1);
-  const yyyy = etToday.getFullYear();
-  const mm = String(etToday.getMonth() + 1).padStart(2, '0');
-  const dd = String(etToday.getDate()).padStart(2, '0');
+  const yyyy = et.getFullYear();
+  const mm = String(et.getMonth() + 1).padStart(2, '0');
+  const dd = String(et.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function yesterdayInET(): string {
+  const t = new Date(todayInET());
+  t.setDate(t.getDate() - 1);
+  const yyyy = t.getFullYear();
+  const mm = String(t.getMonth() + 1).padStart(2, '0');
+  const dd = String(t.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function yearStartInET(): string {
+  const t = new Date(todayInET());
+  const yyyy = t.getFullYear();
+  return `${yyyy}-01-01`;
+}
+
+/* ---------------- Component ---------------- */
+
 export default function App() {
+  // Default to yesterday (ET)
   const [date, setDate] = useState<string>(yesterdayInET());
   const [weather, setWeather] = useState<WeatherRow[]>([]);
   const [checks, setChecks] = useState<CheckApiRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Index weather by "Location, ST"
   const weatherByLoc = useMemo(() => {
     const m: Record<string, WeatherRow> = {};
     for (const w of weather) m[`${w.location}, ${w.state}`] = w;
     return m;
   }, [weather]);
 
+  // Card order from weather rows
   const locations = useMemo(
     () => weather.map(w => ({ name: w.location, state: w.state })),
     [weather]
   );
 
+  // For quick completion lookups per card (location -> { personId: completed })
   const groupedChecks = useMemo(() => {
     const g: Record<string, Record<string, boolean>> = {};
     for (const c of checks) {
@@ -92,6 +113,7 @@ export default function App() {
   async function toggle(personId: string, completed: boolean) {
     try {
       await setCheck(date, personId, completed);
+      // optimistic update
       setChecks(prev =>
         prev.map(c => (c.person.id === personId ? { ...c, completed } : c))
       );
@@ -103,7 +125,6 @@ export default function App() {
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6">
       <header className="flex items-center justify-between">
-        {/* Make header clearly visible in both themes */}
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
           Weather Checks
         </h1>
@@ -113,6 +134,8 @@ export default function App() {
             className="input"
             type="date"
             value={date}
+            min={yearStartInET()} // ✅ only current year's history
+            max={todayInET()}     // ✅ prevent future dates
             onChange={e => setDate(e.target.value)}
           />
         </div>
@@ -131,7 +154,7 @@ export default function App() {
 
           const checksForCard = groupedChecks[loc.name] || {};
 
-          // Safe render for temperature: only show number if finite
+          // Safe temp render: only pass weather if highTempF is a finite number
           const weatherForCard =
             w && Number.isFinite(Number(w.highTempF))
               ? {
