@@ -4,9 +4,9 @@ import { getChecks, getWeather, setCheck } from './api';
 import { LocationCard } from './components/LocationCard';
 
 type WeatherRow = {
-  location: string;   // e.g. "Windham"
-  state: string;      // e.g. "NH"
-  highTempF: number;
+  location: string;
+  state: string;
+  highTempF: number | null;
   rained: boolean;
   snowed: boolean;
 };
@@ -15,7 +15,7 @@ type CheckApiRow = {
   person: {
     id: string;
     name: string;
-    location: string | null; // "Windham" | "Concord" | "Somerville" | "Quincy"
+    location: string | null;
   };
   completed: boolean;
 };
@@ -39,27 +39,23 @@ function yesterdayInET(): string {
 }
 
 export default function App() {
-  // ✅ Default to yesterday in ET
   const [date, setDate] = useState<string>(yesterdayInET());
   const [weather, setWeather] = useState<WeatherRow[]>([]);
   const [checks, setChecks] = useState<CheckApiRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Index weather by "Location, ST"
   const weatherByLoc = useMemo(() => {
     const m: Record<string, WeatherRow> = {};
     for (const w of weather) m[`${w.location}, ${w.state}`] = w;
     return m;
   }, [weather]);
 
-  // Card order: derive from weather rows (ensures known 4 cards)
   const locations = useMemo(
     () => weather.map(w => ({ name: w.location, state: w.state })),
     [weather]
   );
 
-  // For quick toggle lookups per card (location -> { personId: completed })
   const groupedChecks = useMemo(() => {
     const g: Record<string, Record<string, boolean>> = {};
     for (const c of checks) {
@@ -96,7 +92,6 @@ export default function App() {
   async function toggle(personId: string, completed: boolean) {
     try {
       await setCheck(date, personId, completed);
-      // optimistic update
       setChecks(prev =>
         prev.map(c => (c.person.id === personId ? { ...c, completed } : c))
       );
@@ -108,7 +103,8 @@ export default function App() {
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+        {/* Make header clearly visible in both themes */}
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
           Weather Checks
         </h1>
         <div className="flex items-center gap-2">
@@ -129,28 +125,28 @@ export default function App() {
           const key = `${loc.name}, ${loc.state}`;
           const w = weatherByLoc[key];
 
-          // Build people array for this location from the checks API rows
           const peopleForCard = checks
             .filter(c => c.person?.location === loc.name)
             .map(c => ({ id: c.person.id, name: c.person.name }));
 
-          // Build completion map for this card
           const checksForCard = groupedChecks[loc.name] || {};
+
+          // Safe render for temperature: only show number if finite
+          const weatherForCard =
+            w && Number.isFinite(Number(w.highTempF))
+              ? {
+                  highTempF: Number(w.highTempF),
+                  rained: w.rained,
+                  snowed: w.snowed,
+                }
+              : undefined;
 
           return (
             <LocationCard
               key={key}
               name={loc.name}
               state={loc.state}
-              weather={
-                w
-                  ? {
-                      highTempF: w.highTempF,
-                      rained: w.rained,
-                      snowed: w.snowed,
-                    }
-                  : undefined
-              }
+              weather={weatherForCard}
               people={peopleForCard}
               checks={checksForCard}
               onToggle={toggle}
