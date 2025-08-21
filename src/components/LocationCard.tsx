@@ -18,24 +18,32 @@ export function LocationCard({
   return (
     <div className="card">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">{name}, {state}</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          {name}, {state}
+        </h3>
         <div className="flex gap-2 items-center">
-          <span className="text-xl font-bold">{weather ? Math.round(weather.highTempF) : '—'}°F</span>
+          <span className="text-xl font-bold text-gray-900 dark:text-gray-100">
+            {weather ? Math.round(weather.highTempF) : '—'}°F
+          </span>
           <span className={clsx('badge', weather?.rained ? 'on' : 'off')}>☔ Rain</span>
           <span className={clsx('badge', weather?.snowed ? 'on' : 'off')}>❄ Snow</span>
         </div>
       </div>
+
       <div className="mt-3">
         <div className="label mb-2">People</div>
         <div className="flex flex-wrap gap-3">
           {people.map(p => (
-            <label key={p.id} className="inline-flex items-center gap-2">
+            <label
+              key={p.id}
+              className="inline-flex items-center gap-2 text-gray-900 dark:text-gray-100"
+            >
               <input
                 type="checkbox"
                 checked={!!checks[p.id]}
                 onChange={e => onToggle(p.id, e.target.checked)}
               />
-              <span>Completed — {p.name}</span>
+              <span className="font-medium">Completed — {p.name}</span>
             </label>
           ))}
         </div>

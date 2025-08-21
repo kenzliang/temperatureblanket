@@ -92,7 +92,7 @@ export default function App() {
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Weather Checks</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Weather Checks</h1>
         <div className="flex items-center gap-2">
           <label className="label">Date</label>
           <input
