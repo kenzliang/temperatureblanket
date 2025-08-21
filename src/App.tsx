@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import './styles.css';
 import { getChecks, getWeather, setCheck } from './api';
-import { yesterdayET } from './lib/date';
 import { LocationCard } from './components/LocationCard';
 
 type WeatherRow = {
@@ -21,8 +20,27 @@ type CheckApiRow = {
   completed: boolean;
 };
 
+// Compute YYYY-MM-DD for "yesterday" in America/New_York
+function yesterdayInET(): string {
+  const now = new Date();
+  const etToday = new Date(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now)
+  );
+  etToday.setDate(etToday.getDate() - 1);
+  const yyyy = etToday.getFullYear();
+  const mm = String(etToday.getMonth() + 1).padStart(2, '0');
+  const dd = String(etToday.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export default function App() {
-  const [date, setDate] = useState<string>(yesterdayET());
+  // ✅ Default to yesterday in ET
+  const [date, setDate] = useState<string>(yesterdayInET());
   const [weather, setWeather] = useState<WeatherRow[]>([]);
   const [checks, setChecks] = useState<CheckApiRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -45,8 +63,8 @@ export default function App() {
   const groupedChecks = useMemo(() => {
     const g: Record<string, Record<string, boolean>> = {};
     for (const c of checks) {
-      const loc = c.person?.location;
-      const pid = c.person?.id;
+      const loc = c.person?.location || '';
+      const pid = c.person?.id || '';
       if (!loc || !pid) continue;
       g[loc] ||= {};
       g[loc][pid] = !!c.completed;
@@ -80,9 +98,7 @@ export default function App() {
       await setCheck(date, personId, completed);
       // optimistic update
       setChecks(prev =>
-        prev.map(c =>
-          c.person.id === personId ? { ...c, completed } : c
-        )
+        prev.map(c => (c.person.id === personId ? { ...c, completed } : c))
       );
     } catch {
       alert('Failed to update');
@@ -92,7 +108,9 @@ export default function App() {
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6">
       <header className="flex items-center justify-between">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Weather Checks</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          Weather Checks
+        </h1>
         <div className="flex items-center gap-2">
           <label className="label">Date</label>
           <input
@@ -104,7 +122,7 @@ export default function App() {
         </div>
       </header>
 
-      {err && <div className="text-red-600">{err}</div>}
+      {err && <div className="text-red-600 dark:text-red-400">{err}</div>}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {locations.map(loc => {
