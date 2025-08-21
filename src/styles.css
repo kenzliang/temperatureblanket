@@ -4,38 +4,85 @@
 
 /* --- Base (light) --- */
 @layer base {
-  html, body {
-    @apply min-h-screen;
-  }
 
-  body {
-    @apply bg-gray-50 text-gray-900;
-  }
+    html,
+    body {
+        @apply min-h-screen;
+    }
+
+    body {
+        @apply bg-gray-50 text-gray-900;
+    }
 }
 
 /* --- Dark mode (media) --- */
 @media (prefers-color-scheme: dark) {
-  @layer base {
-    body {
-      @apply bg-slate-900 text-slate-100;
+    @layer base {
+        body {
+            @apply bg-slate-900 text-slate-100;
+        }
     }
-  }
 }
 
 @layer components {
-  .card {
-    @apply rounded-lg shadow-md p-4 bg-white dark:bg-gray-800 transition;
-  }
-  .card-header {
-    @apply font-semibold text-lg mb-2 text-gray-800 dark:text-gray-100;
-  }
-  .badge {
-    @apply inline-block px-2 py-1 text-xs font-medium rounded;
-  }
-  .badge-success {
-    @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
-  }
-  .badge-error {
-    @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200;
-  }
+    .card {
+        @apply rounded-lg shadow-md p-4 bg-white dark:bg-gray-800 transition;
+    }
+
+    .card-header {
+        @apply font-semibold text-lg mb-2 text-gray-800 dark:text-gray-100;
+    }
+
+    .badge {
+        @apply inline-block px-2 py-1 text-xs font-medium rounded;
+    }
+
+    .badge-success {
+        @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
+    }
+
+    .badge-error {
+        @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200;
+    }
+}
+
+/* Base checkbox reset */
+input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    /* Safari */
+    -moz-appearance: none;
+    /* Firefox */
+    width: 1.25rem;
+    /* 20px */
+    height: 1.25rem;
+    border: 2px solid #ccc;
+    border-radius: 0.25rem;
+    display: inline-block;
+    cursor: pointer;
+    background-color: transparent;
+    vertical-align: middle;
+}
+
+/* Checked state with yarn icon */
+input[type="checkbox"]:checked {
+    background-color: #fff;
+    /* or transparent */
+    background-image: url('/yarn.svg');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 1rem 1rem;
+    /* scale the yarn */
+    border-color: #6b7280;
+    /* Tailwind gray-500 */
+}
+
+.dark input[type="checkbox"] {
+    border-color: #9ca3af;
+    /* gray-400 */
+}
+
+.dark input[type="checkbox"]:checked {
+    background-color: #1f2937;
+    /* gray-800 */
 }
