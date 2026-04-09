@@ -10,11 +10,73 @@ import { useSwipe } from '@/components/useSwipe';
 import type { CheckApiRow, WeatherApiRow, StatsResponse } from '@/types';
 import { todayET, yesterdayET, dataStartDate } from '@/lib/dates';
 
+// ── localStorage helpers ──────────────────────────────────────────────────
+const CACHE_KEY = 'tbt_cache';
+const DATE_KEY = 'tbt_last_date';
+
+function readCache(d: string): { weather: WeatherApiRow[]; checks: CheckApiRow[] } | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const cache = JSON.parse(raw);
+    if (cache?.date === d && Array.isArray(cache.weather) && Array.isArray(cache.checks)) {
+      return { weather: cache.weather, checks: cache.checks };
+    }
+  } catch {}
+  return null;
+}
+
+function writeCache(d: string, weather: WeatherApiRow[], checks: CheckApiRow[]) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ date: d, weather, checks }));
+  } catch {}
+}
+
+function readLastDate(min: string, max: string): string | null {
+  try {
+    const d = localStorage.getItem(DATE_KEY);
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d) && d >= min && d <= max) return d;
+  } catch {}
+  return null;
+}
+
+function writeLastDate(d: string) {
+  try { localStorage.setItem(DATE_KEY, d); } catch {}
+}
+
 export default function HomePage() {
-  const [date, setDate] = useState<string>(() => yesterdayET());
-  const [weather, setWeather] = useState<WeatherApiRow[]>([]);
-  const [checks, setChecks] = useState<CheckApiRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const minDate = dataStartDate();
+  const maxDate = todayET();
+
+  const [date, setDateRaw] = useState<string>(() => {
+    // Can't access localStorage during SSR; this runs client-side only
+    if (typeof window === 'undefined') return yesterdayET();
+    return readLastDate(minDate, maxDate) ?? yesterdayET();
+  });
+
+  // Wrap setDate to also persist to localStorage
+  const setDate = useCallback((d: string) => {
+    setDateRaw(d);
+    writeLastDate(d);
+  }, []);
+
+  // Initialize weather/checks from cache for instant render
+  const [weather, setWeather] = useState<WeatherApiRow[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return readCache(readLastDate(minDate, maxDate) ?? yesterdayET())?.weather ?? [];
+  });
+  const [checks, setChecks] = useState<CheckApiRow[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return readCache(readLastDate(minDate, maxDate) ?? yesterdayET())?.checks ?? [];
+  });
+
+  // If we loaded from cache, don't show skeleton — show cached data while refreshing
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const cached = readCache(readLastDate(minDate, maxDate) ?? yesterdayET());
+    return !cached;
+  });
+
   const [err, setErr] = useState<string | null>(null);
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [backfilling, setBackfilling] = useState(false);
@@ -23,8 +85,6 @@ export default function HomePage() {
   // Transition state for fade animation
   const [transitioning, setTransitioning] = useState(false);
 
-  const minDate = dataStartDate();
-  const maxDate = todayET();
   const year = date.slice(0, 4);
 
   // ── Day navigation ────────────────────────────────────────────────────────
@@ -131,21 +191,34 @@ export default function HomePage() {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
     setErr(null);
     setBackfillMsg(null);
 
+    // Show cached data instantly if available; otherwise show skeleton
+    const cached = readCache(date);
+    if (cached) {
+      setWeather(cached.weather);
+      setChecks(cached.checks);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
+    // Always fetch fresh data in background
     Promise.all([
       fetch(`/api/weather?date=${date}`).then((r) => r.json()),
       fetch(`/api/checks?date=${date}`).then((r) => r.json()),
     ])
       .then(([w, c]) => {
         if (!active) return;
-        setWeather(Array.isArray(w) ? w : []);
-        setChecks(Array.isArray(c) ? c : []);
+        const wArr = Array.isArray(w) ? w : [];
+        const cArr = Array.isArray(c) ? c : [];
+        setWeather(wArr);
+        setChecks(cArr);
+        writeCache(date, wArr, cArr);
       })
       .catch((e) => {
-        if (active) setErr(e?.message ?? 'Failed to load');
+        if (active && !cached) setErr(e?.message ?? 'Failed to load');
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -172,6 +245,8 @@ export default function HomePage() {
         body: JSON.stringify({ date, personId, completed }),
       });
       if (!r.ok) throw new Error('Update failed');
+      // Update cache with new checks state
+      setChecks((latest) => { writeCache(date, weather, latest); return latest; });
       refreshStats();
     } catch {
       setChecks((prev) =>
