@@ -48,11 +48,16 @@ export default function HomePage() {
   const minDate = dataStartDate();
   const maxDate = todayET();
 
-  const [date, setDateRaw] = useState<string>(() => {
-    // Can't access localStorage during SSR; this runs client-side only
-    if (typeof window === 'undefined') return yesterdayET();
-    return readLastDate(minDate, maxDate) ?? yesterdayET();
-  });
+  // Start with consistent SSR-safe defaults; hydrate from localStorage in useEffect
+  const [date, setDateRaw] = useState<string>(yesterdayET);
+  const [weather, setWeather] = useState<WeatherApiRow[]>([]);
+  const [checks, setChecks] = useState<CheckApiRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [stats, setStats] = useState<StatsResponse | null>(null);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
+  const [transitioning, setTransitioning] = useState(false);
 
   // Wrap setDate to also persist to localStorage
   const setDate = useCallback((d: string) => {
@@ -60,30 +65,22 @@ export default function HomePage() {
     writeLastDate(d);
   }, []);
 
-  // Initialize weather/checks from cache for instant render
-  const [weather, setWeather] = useState<WeatherApiRow[]>(() => {
-    if (typeof window === 'undefined') return [];
-    return readCache(readLastDate(minDate, maxDate) ?? yesterdayET())?.weather ?? [];
-  });
-  const [checks, setChecks] = useState<CheckApiRow[]>(() => {
-    if (typeof window === 'undefined') return [];
-    return readCache(readLastDate(minDate, maxDate) ?? yesterdayET())?.checks ?? [];
-  });
-
-  // If we loaded from cache, don't show skeleton — show cached data while refreshing
-  const [loading, setLoading] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    const cached = readCache(readLastDate(minDate, maxDate) ?? yesterdayET());
-    return !cached;
-  });
-
-  const [err, setErr] = useState<string | null>(null);
-  const [stats, setStats] = useState<StatsResponse | null>(null);
-  const [backfilling, setBackfilling] = useState(false);
-  const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
-
-  // Transition state for fade animation
-  const [transitioning, setTransitioning] = useState(false);
+  // On mount: restore last date + cached data from localStorage
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    const savedDate = readLastDate(minDate, maxDate);
+    if (savedDate && savedDate !== date) {
+      setDateRaw(savedDate); // triggers the data-fetch effect
+    }
+    const cached = readCache(savedDate ?? date);
+    if (cached) {
+      setWeather(cached.weather);
+      setChecks(cached.checks);
+      setLoading(false);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const year = date.slice(0, 4);
 

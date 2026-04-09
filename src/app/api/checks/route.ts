@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/server';
+import { updateStreak } from '@/lib/streak';
 import type { CheckApiRow } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -79,7 +80,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { onConflict: 'd,person_id' }
     );
     if (error) throw error;
-    return NextResponse.json({ ok: true });
+
+    // Update streak incrementally after every toggle
+    const streak = await updateStreak(personId as string, completed as boolean);
+
+    return NextResponse.json({ ok: true, streak });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'checks POST failed' },

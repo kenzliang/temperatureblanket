@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/server';
 import type { DaySummary, PersonProgress, LocationTrend, StatsResponse } from '@/types';
-import { yesterdayET } from '@/lib/dates';
+import { yesterdayET } from '@/lib/dates'; // still used for trend dates
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const { data: people, error: pErr } = await supabase
       .from('people')
-      .select('id, name, location_id, locations ( id, name, state )')
+      .select('id, name, location_id, streak, locations ( id, name, state )')
       .order('name');
     if (pErr) throw pErr;
 
@@ -80,14 +80,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         };
       });
 
-    // ── Per-person progress + streak ───────────────────────────────────────
-    // Streak: the last 5 days (from yesterday back) must ALL be completed.
-    // If yes, count consecutive completed days backwards from yesterday.
-    // If any of the last 5 are incomplete, streak = 0.
-    const yesterday = yesterdayET();
-
-    // Build per-person: date → completed, plus counts and incomplete list
-    const personCheckMap = new Map<string, Map<string, boolean>>();
+    // ── Per-person progress (streak read from DB) ──────────────────────────
     const personCompletedMap = new Map<string, number>();
     const personTotalMap = new Map<string, number>();
     const personIncompleteDates = new Map<string, string[]>();
@@ -100,57 +93,24 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         dates.push(c.d);
         personIncompleteDates.set(c.person_id, dates);
       }
-      if (!personCheckMap.has(c.person_id)) personCheckMap.set(c.person_id, new Map());
-      personCheckMap.get(c.person_id)!.set(c.d, !!c.completed);
-    }
-
-    function dateNDaysAgo(from: string, n: number): string {
-      const d = new Date(from + 'T00:00:00');
-      d.setDate(d.getDate() - n);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    }
-
-    function computeStreak(personId: string): number {
-      const checks = personCheckMap.get(personId);
-      if (!checks) return 0;
-
-      // First check: all 7 days from yesterday must be completed
-      for (let i = 0; i < 7; i++) {
-        const ds = dateNDaysAgo(yesterday, i);
-        if (ds < startDate) break;
-        if (checks.get(ds) !== true) return 0;
-      }
-
-      // All 5 recent days are complete — now count the full streak
-      let streak = 0;
-      const d = new Date(yesterday + 'T00:00:00');
-      for (let i = 0; i < 400; i++) {
-        const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        if (ds < startDate) break;
-        if (checks.get(ds) !== true) break;
-        streak++;
-        d.setDate(d.getDate() - 1);
-      }
-
-      return streak;
     }
 
     const progress: PersonProgress[] = (people ?? []).map((p: any) => {
       const incomplete = personIncompleteDates.get(p.id) ?? [];
-      incomplete.sort(); // oldest first
+      incomplete.sort();
       return {
         personId: p.id,
         personName: p.name,
         locationName: p.locations?.name ?? '',
         completedDays: personCompletedMap.get(p.id) ?? 0,
         totalDays: personTotalMap.get(p.id) ?? 0,
-        streak: computeStreak(p.id),
+        streak: Number(p.streak) || 0,
         incompleteDates: incomplete,
       };
     });
 
     // ── 7-day location trends ──────────────────────────────────────────────
-    // Build last 7 days of date strings ending at yesterday
+    const yesterday = yesterdayET();
     const trendDates: string[] = [];
     {
       const d = new Date(yesterday + 'T00:00:00');

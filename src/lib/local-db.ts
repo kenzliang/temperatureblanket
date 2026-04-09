@@ -71,6 +71,7 @@ class QueryBuilder {
   private _selectStr = '*';
   private _conditions: Array<[col: string, op: string, val: unknown]> = [];
   private _orderCol: string | null = null;
+  private _updateData: Row | null = null;
   private _pending: Promise<SelectResult> | null = null;
 
   constructor(table: string) {
@@ -99,6 +100,12 @@ class QueryBuilder {
 
   order(col: string): this {
     this._orderCol = col;
+    return this;
+  }
+
+  // ── Update (chainable: .from(t).update(data).eq(col, val)) ──────────────
+  update(data: Row): this {
+    this._updateData = data;
     return this;
   }
 
@@ -153,10 +160,30 @@ class QueryBuilder {
     return this._pending.then(onfulfilled ?? undefined, onrejected ?? undefined);
   }
 
-  // ── Core SELECT execution ───────────────────────────────────────────────────
+  // ── Core execution ──────────────────────────────────────────────────────────
   private async _execute(): Promise<SelectResult> {
     const client = await getPool().connect();
     try {
+      // ── UPDATE path ──────────────────────────────────────────────────────
+      if (this._updateData) {
+        const cols = Object.keys(this._updateData);
+        const setClauses = cols.map((c, i) => `"${c}" = $${i + 1}`).join(', ');
+        const values = cols.map((c) => this._updateData![c]);
+        const whereIdx = values.length;
+        const where =
+          this._conditions.length > 0
+            ? 'WHERE ' +
+              this._conditions
+                .map(([col, op], i) => `"${this._table}"."${col}" ${op} $${whereIdx + i + 1}`)
+                .join(' AND ')
+            : '';
+        const whereVals = this._conditions.map(([, , v]) => v);
+        const sql = `UPDATE "${this._table}" SET ${setClauses} ${where}`;
+        await client.query(sql, [...values, ...whereVals]);
+        return { data: null, error: null };
+      }
+
+      // ── SELECT path ──────────────────────────────────────────────────────
       const t = this._table;
       const { main, relations } = parseSelect(this._selectStr);
       const paramValues = this._conditions.map(([, , v]) => v);

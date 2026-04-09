@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS people (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name        TEXT NOT NULL,
   location_id UUID NOT NULL REFERENCES locations (id) ON DELETE CASCADE,
+  streak      INTEGER NOT NULL DEFAULT 0,
   CONSTRAINT people_name_location_key UNIQUE (name, location_id)
 );
 
