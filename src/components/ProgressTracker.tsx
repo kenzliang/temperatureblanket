@@ -4,6 +4,7 @@ interface PersonProgress {
   locationName: string;
   completedDays: number;
   totalDays: number;
+  streak: number;
 }
 
 interface ProgressTrackerProps {
@@ -35,9 +36,16 @@ export function ProgressTracker({ progress }: ProgressTrackerProps) {
                     ({p.locationName})
                   </span>
                 </span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                  {p.completedDays}/{p.totalDays}
-                </span>
+                <div className="flex items-center gap-2">
+                  {p.streak > 0 && (
+                    <span className="text-xs text-orange-600 dark:text-orange-400 font-medium" title="Current streak">
+                      {p.streak} day streak
+                    </span>
+                  )}
+                  <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                    {p.completedDays}/{p.totalDays}
+                  </span>
+                </div>
               </div>
               <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                 <div

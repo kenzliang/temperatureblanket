@@ -5,6 +5,8 @@ import { LocationCard } from '@/components/LocationCard';
 import { SkeletonCard } from '@/components/SkeletonCard';
 import { CalendarHeatmap } from '@/components/CalendarHeatmap';
 import { ProgressTracker } from '@/components/ProgressTracker';
+import { IncompleteDates } from '@/components/IncompleteDates';
+import { useSwipe } from '@/components/useSwipe';
 import type { CheckApiRow, WeatherApiRow, StatsResponse } from '@/types';
 import { todayET, yesterdayET, dataStartDate } from '@/lib/dates';
 
@@ -15,6 +17,11 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [stats, setStats] = useState<StatsResponse | null>(null);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
+
+  // Transition state for fade animation
+  const [transitioning, setTransitioning] = useState(false);
 
   const minDate = dataStartDate();
   const maxDate = todayET();
@@ -28,13 +35,22 @@ export default function HomePage() {
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     const next = `${y}-${m}-${dd}`;
-    if (next >= minDate && next <= maxDate) setDate(next);
+    if (next >= minDate && next <= maxDate) changeDate(next);
   }
   const canGoPrev = date > minDate;
   const canGoNext = date < maxDate;
 
-  // Keyboard arrow support (left/right when not focused on an input)
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  // Animated date change
+  function changeDate(newDate: string) {
+    if (newDate === date) return;
+    setTransitioning(true);
+    setTimeout(() => {
+      setDate(newDate);
+      setTransitioning(false);
+    }, 150);
+  }
+
+  // Keyboard arrows
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
@@ -44,6 +60,12 @@ export default function HomePage() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   });
+
+  // Swipe gestures: swipe left = next day, swipe right = prev day
+  const swipeHandlers = useSwipe(
+    () => shiftDate(1),   // swipe left → forward
+    () => shiftDate(-1),  // swipe right → backward
+  );
 
   // ── Derived data ──────────────────────────────────────────────────────────
 
@@ -89,22 +111,29 @@ export default function HomePage() {
     return g;
   }, [checks]);
 
+  // Trend temps by location key
+  const trendsByLoc = useMemo(() => {
+    const m: Record<string, (number | null)[]> = {};
+    if (stats?.trends) {
+      for (const t of stats.trends) m[t.key] = t.temps;
+    }
+    return m;
+  }, [stats]);
+
   // ── Data fetching ─────────────────────────────────────────────────────────
 
-  // Fetch stats once (background, non-blocking)
   useEffect(() => {
     fetch(`/api/stats?year=${year}`)
       .then((r) => r.json())
-      .then((s) => {
-        if (s.calendar && s.progress) setStats(s);
-      })
-      .catch(() => {}); // stats are supplementary, don't block on errors
+      .then((s) => { if (s.calendar && s.progress) setStats(s); })
+      .catch(() => {});
   }, [year]);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     setErr(null);
+    setBackfillMsg(null);
 
     Promise.all([
       fetch(`/api/weather?date=${date}`).then((r) => r.json()),
@@ -125,7 +154,6 @@ export default function HomePage() {
     return () => { active = false; };
   }, [date]);
 
-  // Refetch stats after a toggle so progress bar updates
   const refreshStats = useCallback(() => {
     fetch(`/api/stats?year=${year}`)
       .then((r) => r.json())
@@ -155,13 +183,44 @@ export default function HomePage() {
     }
   }
 
+  // ── Auto-backfill ─────────────────────────────────────────────────────────
+  async function backfillDate() {
+    setBackfilling(true);
+    setBackfillMsg(null);
+    try {
+      const r = await fetch(`/api/jobs/fetch-yesterday?date=${date}`);
+      const data = await r.json();
+      if (data.ok || r.ok) {
+        setBackfillMsg('Weather data fetched successfully. Refreshing...');
+        // Re-fetch page data
+        const [w, c] = await Promise.all([
+          fetch(`/api/weather?date=${date}`).then((r) => r.json()),
+          fetch(`/api/checks?date=${date}`).then((r) => r.json()),
+        ]);
+        setWeather(Array.isArray(w) ? w : []);
+        setChecks(Array.isArray(c) ? c : []);
+        refreshStats();
+        setBackfillMsg(null);
+      } else {
+        setBackfillMsg(data.error || 'Backfill failed');
+      }
+    } catch (e) {
+      setBackfillMsg(e instanceof Error ? e.message : 'Backfill failed');
+    } finally {
+      setBackfilling(false);
+    }
+  }
+
   // ── Banner logic ───────────────────────────────────────────────────────────
   const hasWeatherForDate = weather.length > 0;
   const isToday = date === maxDate;
   const missingWeather = !loading && !hasWeatherForDate && !isToday;
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100">
+    <div
+      className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100"
+      {...swipeHandlers}
+    >
       {/* ── Sticky header ─────────────────────────────────────────────── */}
       <div className="sticky top-0 z-10 bg-gray-50/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
         <div className="max-w-5xl mx-auto px-4 py-3">
@@ -190,7 +249,7 @@ export default function HomePage() {
                 value={date}
                 min={minDate}
                 max={maxDate}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => changeDate(e.target.value)}
               />
               <button
                 onClick={() => shiftDate(1)}
@@ -204,11 +263,29 @@ export default function HomePage() {
               </button>
             </div>
           </div>
+          {/* ── Quick jump buttons ─────────────────────────────────────── */}
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => changeDate(yesterdayET())}
+              className="text-xs px-2 py-1 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+            >
+              Yesterday
+            </button>
+            <button
+              onClick={() => changeDate(todayET())}
+              className="text-xs px-2 py-1 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+            >
+              Today
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto p-4 space-y-6">
-
+      <div
+        className={`max-w-5xl mx-auto p-4 space-y-6 transition-opacity duration-150 ${
+          transitioning ? 'opacity-0' : 'opacity-100'
+        }`}
+      >
         {err && (
           <div role="alert" className="text-red-600 dark:text-red-400">
             {err}
@@ -227,13 +304,24 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── Missing weather badge ───────────────────────────────────── */}
+        {/* ── Missing weather badge with backfill button ──────────────── */}
         {missingWeather && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm">
-            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>Weather data missing for {date}.</span>
+          <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>
+                {backfillMsg || `Weather data missing for ${date}.`}
+              </span>
+            </div>
+            <button
+              onClick={backfillDate}
+              disabled={backfilling}
+              className="shrink-0 px-3 py-1 text-xs font-medium rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+            >
+              {backfilling ? 'Fetching...' : 'Fetch Now'}
+            </button>
           </div>
         )}
 
@@ -257,6 +345,7 @@ export default function HomePage() {
                       snowed: w.snowed,
                     }
                   : undefined;
+              const trendKey = `${loc.name},${loc.state}`;
 
               return (
                 <LocationCard
@@ -267,6 +356,7 @@ export default function HomePage() {
                   people={peopleByLoc[loc.name] ?? []}
                   checks={groupedChecks[loc.name] ?? {}}
                   onToggle={toggle}
+                  trendTemps={trendsByLoc[trendKey]}
                 />
               );
             })
@@ -285,12 +375,17 @@ export default function HomePage() {
             <CalendarHeatmap
               data={stats.calendar}
               selectedDate={date}
-              onSelectDate={setDate}
+              onSelectDate={changeDate}
               minDate={minDate}
               maxDate={maxDate}
             />
             <ProgressTracker progress={stats.progress} />
           </div>
+        )}
+
+        {/* ── Incomplete dates per person ─────────────────────────────── */}
+        {stats && (
+          <IncompleteDates progress={stats.progress} onSelectDate={changeDate} />
         )}
       </div>
     </div>

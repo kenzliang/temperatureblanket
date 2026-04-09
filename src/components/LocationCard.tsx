@@ -1,4 +1,6 @@
 import { clsx } from 'clsx';
+import { WeatherIcon } from './WeatherIcon';
+import { Sparkline } from './Sparkline';
 
 interface WeatherData {
   highTempF: number;
@@ -16,14 +18,11 @@ interface LocationCardProps {
   state: string;
   weather?: WeatherData;
   people: Person[];
-  checks: Record<string, boolean>; // person_id → completed
+  checks: Record<string, boolean>;
   onToggle: (personId: string, completed: boolean) => void;
+  trendTemps?: (number | null)[];
 }
 
-/**
- * Map temperature to a color class.
- * Gradient: blue (cold) → cyan → green → yellow → orange → red (hot)
- */
 function tempColorClass(f: number): string {
   if (f <= 10) return 'text-blue-700 dark:text-blue-300';
   if (f <= 25) return 'text-blue-500 dark:text-blue-400';
@@ -41,10 +40,8 @@ export function LocationCard({
   people,
   checks,
   onToggle,
+  trendTemps,
 }: LocationCardProps) {
-  const rainYes = weather?.rained === true;
-  const snowYes = weather?.snowed === true;
-
   return (
     <div className="card">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -63,23 +60,20 @@ export function LocationCard({
             {weather != null ? `${Math.round(weather.highTempF)}°F` : '—°F'}
           </span>
 
-          <span
-            className={clsx('badge', rainYes ? 'on' : 'off')}
-            title={rainYes ? 'It rained on this date' : 'No measurable rain on this date'}
-            aria-label={`Rain: ${rainYes ? 'Yes' : 'No'}`}
-          >
-            {rainYes ? '✓ Rain: Yes' : 'Rain: No'}
-          </span>
-
-          <span
-            className={clsx('badge', snowYes ? 'on' : 'off')}
-            title={snowYes ? 'It snowed on this date' : 'No snow on this date'}
-            aria-label={`Snow: ${snowYes ? 'Yes' : 'No'}`}
-          >
-            {snowYes ? '✓ Snow: Yes' : 'Snow: No'}
-          </span>
+          {weather != null ? (
+            <WeatherIcon rained={weather.rained} snowed={weather.snowed} />
+          ) : (
+            <span className="text-xs text-gray-400 dark:text-gray-500">No data</span>
+          )}
         </div>
       </div>
+
+      {/* 7-day trend sparkline */}
+      {trendTemps && trendTemps.some((t) => t != null) && (
+        <div className="mt-2">
+          <Sparkline temps={trendTemps} />
+        </div>
+      )}
 
       <div className="mt-3">
         <div className="label mb-2">People</div>

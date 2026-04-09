@@ -4,6 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Temperature Blanket Tracker',
   description: 'Daily weather tracker for New England locations',
+  icons: { icon: '/knitting-yarn.svg' },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

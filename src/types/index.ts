@@ -53,9 +53,18 @@ export interface PersonProgress {
   locationName: string;
   completedDays: number;
   totalDays: number;
+  streak: number;
+  incompleteDates: string[];  // YYYY-MM-DD dates not yet completed
+}
+
+// 7-day temp history per location, keyed by "locationName,state"
+export interface LocationTrend {
+  key: string;         // "Windham,NH"
+  temps: (number | null)[];  // last 7 days, oldest first
 }
 
 export interface StatsResponse {
   calendar: DaySummary[];
   progress: PersonProgress[];
+  trends: LocationTrend[];
 }
