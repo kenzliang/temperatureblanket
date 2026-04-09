@@ -167,7 +167,7 @@ export default function HomePage() {
         <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <h1 className="text-xl sm:text-3xl font-extrabold text-gray-900 dark:text-white truncate">
-              Weather Checks
+              Temperature Blanket Tracker
             </h1>
             <div className="flex items-center gap-1 shrink-0">
               <label className="label hidden sm:block mr-1" htmlFor="date-picker">

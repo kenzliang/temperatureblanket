@@ -39,7 +39,7 @@ export function middleware(req: NextRequest): NextResponse {
 
   return new NextResponse('Authentication required', {
     status: 401,
-    headers: { 'WWW-Authenticate': 'Basic realm="Weather Checks", charset="UTF-8"' },
+    headers: { 'WWW-Authenticate': 'Basic realm="Temperature Blanket", charset="UTF-8"' },
   });
 }
 

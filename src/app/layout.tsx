@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Weather Checks',
+  title: 'Temperature Blanket Tracker',
   description: 'Daily weather tracker for New England locations',
 };
 
