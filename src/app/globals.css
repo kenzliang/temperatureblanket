@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply min-h-screen;
+  }
+
+  body {
+    /* Light default. Dark bg/text are applied via the wrapper div in page.tsx
+       using darkMode: 'class' — NOT via @media query. The class is set by the
+       inline script in layout.tsx before the first paint. */
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-lg shadow-md p-4 bg-white dark:bg-gray-800 transition-colors;
+  }
+
+  .badge {
+    @apply inline-block px-2 py-1 text-xs font-medium rounded;
+  }
+
+  /* Active / "Yes" state */
+  .badge.on {
+    @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
+  }
+
+  /* Inactive / "No" state */
+  .badge.off {
+    @apply bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400;
+  }
+
+  .label {
+    @apply text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400;
+  }
+
+  .input {
+    @apply rounded border border-gray-300 dark:border-gray-600 px-2 py-1 text-sm
+           focus:outline-none focus:ring-2 focus:ring-blue-500;
+  }
+}
+
+/* ── Custom yarn checkbox ───────────────────────────────────────────────── */
+
+/* Reset browser default checkbox appearance */
+input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid #ccc;
+  border-radius: 0.25rem;
+  display: inline-block;
+  cursor: pointer;
+  background-color: transparent;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* Checked: show the knitting-yarn SVG as a background image */
+input[type='checkbox']:checked {
+  background-image: url('/knitting-yarn.svg');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 1rem 1rem;
+  border-color: #6b7280;
+}
+
+/* Dark mode overrides */
+.dark input[type='checkbox'] {
+  border-color: #9ca3af;
+}
+
+.dark input[type='checkbox']:checked {
+  background-color: #1f2937;
+}

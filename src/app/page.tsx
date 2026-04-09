@@ -1,0 +1,298 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LocationCard } from '@/components/LocationCard';
+import { SkeletonCard } from '@/components/SkeletonCard';
+import { CalendarHeatmap } from '@/components/CalendarHeatmap';
+import { ProgressTracker } from '@/components/ProgressTracker';
+import type { CheckApiRow, WeatherApiRow, StatsResponse } from '@/types';
+import { todayET, yesterdayET, dataStartDate } from '@/lib/dates';
+
+export default function HomePage() {
+  const [date, setDate] = useState<string>(() => yesterdayET());
+  const [weather, setWeather] = useState<WeatherApiRow[]>([]);
+  const [checks, setChecks] = useState<CheckApiRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [stats, setStats] = useState<StatsResponse | null>(null);
+
+  const minDate = dataStartDate();
+  const maxDate = todayET();
+  const year = date.slice(0, 4);
+
+  // ── Day navigation ────────────────────────────────────────────────────────
+  function shiftDate(days: number) {
+    const d = new Date(date + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const next = `${y}-${m}-${dd}`;
+    if (next >= minDate && next <= maxDate) setDate(next);
+  }
+  const canGoPrev = date > minDate;
+  const canGoNext = date < maxDate;
+
+  // Keyboard arrow support (left/right when not focused on an input)
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); shiftDate(-1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); shiftDate(1); }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
+
+  // ── Derived data ──────────────────────────────────────────────────────────
+
+  const weatherByLoc = useMemo(() => {
+    const m: Record<string, WeatherApiRow> = {};
+    for (const w of weather) m[`${w.location.name},${w.location.state}`] = w;
+    return m;
+  }, [weather]);
+
+  const locations = useMemo(() => {
+    if (weather.length > 0) return weather.map((w) => w.location);
+    const seen = new Set<string>();
+    const locs: CheckApiRow['person']['location'][] = [];
+    for (const c of checks) {
+      const locId = c.person.location.id;
+      if (!seen.has(locId)) {
+        seen.add(locId);
+        locs.push(c.person.location);
+      }
+    }
+    return locs;
+  }, [weather, checks]);
+
+  const groupedChecks = useMemo(() => {
+    const g: Record<string, Record<string, boolean>> = {};
+    for (const c of checks) {
+      const locName = c.person.location.name;
+      g[locName] ??= {};
+      g[locName][c.person.id] = !!c.completed;
+    }
+    return g;
+  }, [checks]);
+
+  const peopleByLoc = useMemo(() => {
+    const g: Record<string, { id: string; name: string }[]> = {};
+    for (const c of checks) {
+      const locName = c.person.location.name;
+      g[locName] ??= [];
+      if (!g[locName].find((p) => p.id === c.person.id)) {
+        g[locName].push({ id: c.person.id, name: c.person.name });
+      }
+    }
+    return g;
+  }, [checks]);
+
+  // ── Data fetching ─────────────────────────────────────────────────────────
+
+  // Fetch stats once (background, non-blocking)
+  useEffect(() => {
+    fetch(`/api/stats?year=${year}`)
+      .then((r) => r.json())
+      .then((s) => {
+        if (s.calendar && s.progress) setStats(s);
+      })
+      .catch(() => {}); // stats are supplementary, don't block on errors
+  }, [year]);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setErr(null);
+
+    Promise.all([
+      fetch(`/api/weather?date=${date}`).then((r) => r.json()),
+      fetch(`/api/checks?date=${date}`).then((r) => r.json()),
+    ])
+      .then(([w, c]) => {
+        if (!active) return;
+        setWeather(Array.isArray(w) ? w : []);
+        setChecks(Array.isArray(c) ? c : []);
+      })
+      .catch((e) => {
+        if (active) setErr(e?.message ?? 'Failed to load');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [date]);
+
+  // Refetch stats after a toggle so progress bar updates
+  const refreshStats = useCallback(() => {
+    fetch(`/api/stats?year=${year}`)
+      .then((r) => r.json())
+      .then((s) => { if (s.calendar && s.progress) setStats(s); })
+      .catch(() => {});
+  }, [year]);
+
+  async function toggle(personId: string, completed: boolean) {
+    setChecks((prev) =>
+      prev.map((c) => (c.person.id === personId ? { ...c, completed } : c))
+    );
+    try {
+      const r = await fetch('/api/checks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, personId, completed }),
+      });
+      if (!r.ok) throw new Error('Update failed');
+      refreshStats();
+    } catch {
+      setChecks((prev) =>
+        prev.map((c) =>
+          c.person.id === personId ? { ...c, completed: !completed } : c
+        )
+      );
+      alert('Failed to update check. Please try again.');
+    }
+  }
+
+  // ── Banner logic ───────────────────────────────────────────────────────────
+  const hasWeatherForDate = weather.length > 0;
+  const isToday = date === maxDate;
+  const missingWeather = !loading && !hasWeatherForDate && !isToday;
+
+  return (
+    <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100">
+      {/* ── Sticky header ─────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-10 bg-gray-50/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
+        <div className="max-w-5xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-xl sm:text-3xl font-extrabold text-gray-900 dark:text-white truncate">
+              Weather Checks
+            </h1>
+            <div className="flex items-center gap-1 shrink-0">
+              <label className="label hidden sm:block mr-1" htmlFor="date-picker">
+                Date
+              </label>
+              <button
+                onClick={() => shiftDate(-1)}
+                disabled={!canGoPrev}
+                aria-label="Previous day"
+                className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-default transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <input
+                id="date-picker"
+                type="date"
+                className="input bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-100 dark:[color-scheme:dark]"
+                value={date}
+                min={minDate}
+                max={maxDate}
+                onChange={(e) => setDate(e.target.value)}
+              />
+              <button
+                onClick={() => shiftDate(1)}
+                disabled={!canGoNext}
+                aria-label="Next day"
+                className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-default transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto p-4 space-y-6">
+
+        {err && (
+          <div role="alert" className="text-red-600 dark:text-red-400">
+            {err}
+          </div>
+        )}
+
+        {/* ── Today banner ────────────────────────────────────────────── */}
+        {!loading && isToday && !hasWeatherForDate && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300 text-sm">
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>
+              Today&#39;s weather will be available after the day ends. Check back tomorrow.
+            </span>
+          </div>
+        )}
+
+        {/* ── Missing weather badge ───────────────────────────────────── */}
+        {missingWeather && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm">
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Weather data missing for {date}.</span>
+          </div>
+        )}
+
+        {/* ── Location cards (or skeletons) ───────────────────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {loading ? (
+            <>
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </>
+          ) : (
+            locations.map((loc) => {
+              const w = weatherByLoc[`${loc.name},${loc.state}`];
+              const weatherForCard =
+                w != null && Number.isFinite(w.highTempF)
+                  ? {
+                      highTempF: w.highTempF as number,
+                      rained: w.rained,
+                      snowed: w.snowed,
+                    }
+                  : undefined;
+
+              return (
+                <LocationCard
+                  key={loc.id}
+                  name={loc.name}
+                  state={loc.state}
+                  weather={weatherForCard}
+                  people={peopleByLoc[loc.name] ?? []}
+                  checks={groupedChecks[loc.name] ?? {}}
+                  onToggle={toggle}
+                />
+              );
+            })
+          )}
+        </div>
+
+        {!loading && locations.length === 0 && !err && (
+          <div className="text-gray-500 dark:text-gray-400 text-center py-8">
+            No data for {date}.
+          </div>
+        )}
+
+        {/* ── Calendar + Progress section ─────────────────────────────── */}
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CalendarHeatmap
+              data={stats.calendar}
+              selectedDate={date}
+              onSelectDate={setDate}
+              minDate={minDate}
+              maxDate={maxDate}
+            />
+            <ProgressTracker progress={stats.progress} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

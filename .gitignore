@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.env.local
+.env*.local
+*.tsbuildinfo
+next-env.d.ts
+.agents/
+.claude/
+.mcp.json
+skills-lock.json

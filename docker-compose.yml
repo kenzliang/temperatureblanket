@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: weather_checks
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      # Change the left side if you already have Postgres on 5432
+      - "5432:5432"
+    volumes:
+      # Auto-run schema + seed on first start (only runs when data volume is empty)
+      - ./supabase/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./supabase/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+      - weather_checks_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d weather_checks"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  weather_checks_data:
