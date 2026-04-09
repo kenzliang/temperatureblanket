@@ -30,10 +30,11 @@ const QUIPS = [
 ];
 
 function pickQuip(personId: string): string {
-  // Deterministic-ish pick based on personId so it stays stable across renders
+  // Hash personId + today's date so the quip is stable for the day but changes tomorrow
+  const seed = personId + new Date().toISOString().slice(0, 10);
   let hash = 0;
-  for (let i = 0; i < personId.length; i++) {
-    hash = ((hash << 5) - hash + personId.charCodeAt(i)) | 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
   }
   return QUIPS[Math.abs(hash) % QUIPS.length];
 }
