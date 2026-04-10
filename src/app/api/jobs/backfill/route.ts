@@ -10,10 +10,7 @@ function checkCronAuth(req: NextRequest): NextResponse | null {
   if (process.env.NODE_ENV === 'development') return null;
 
   const authHeader = req.headers.get('authorization') ?? '';
-  const [scheme] = authHeader.split(' ');
-
-  // Basic Auth — middleware already validated credentials
-  if (scheme === 'Basic') return null;
+  if (!authHeader) return null; // same-origin fetch — middleware already verified
 
   // Bearer token — validate against CRON_SECRET
   const secret = process.env.CRON_SECRET;

@@ -11,17 +11,14 @@ export const maxDuration = 60;
 //
 // AUTH: accepts either:
 //   1. Bearer <CRON_SECRET> — Vercel cron / manual curl
-//   2. Basic Auth — browser (Fetch Now button); middleware already validated credentials
+//   2. No auth header — same-origin fetch (Fetch Now button); middleware validated origin
 // In development, auth is skipped entirely.
 
 function checkCronAuth(req: NextRequest): NextResponse | null {
   if (process.env.NODE_ENV === 'development') return null;
 
   const authHeader = req.headers.get('authorization') ?? '';
-  const [scheme] = authHeader.split(' ');
-
-  // Basic Auth — middleware already validated user/pass before forwarding here
-  if (scheme === 'Basic') return null;
+  if (!authHeader) return null; // same-origin fetch — middleware already verified
 
   // Bearer token — validate against CRON_SECRET
   const secret = process.env.CRON_SECRET;
