@@ -1,72 +1,106 @@
 import { supabase } from '@/lib/supabase/server';
-import { yesterdayET } from '@/lib/dates';
+import { todayET, yesterdayET } from '@/lib/dates';
 
-function dateNDaysAgo(from: string, n: number): string {
-  const d = new Date(from + 'T00:00:00');
-  d.setDate(d.getDate() - n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+/** How many days before yesterday a weather date can be and still count. */
+const RECENCY_WINDOW = 7;
 
-function isEligible(incompleteDates: string[], yesterday: string): boolean {
-  if (incompleteDates.length >= 7) return false;
-  const cutoff = dateNDaysAgo(yesterday, 7);
-  return incompleteDates.every((d) => d >= cutoff);
-}
+/** After this many days of inactivity, the streak resets to -1. */
+export const INACTIVITY_LIMIT_DAYS = 2;
 
 /**
- * Update streak for a person after a check toggle and persist to DB.
+ * Update a person's streak after they check off a date.
  *
- * The streak is incremental — it does NOT retroactively count past completions.
- * On check-off while eligible: streak += 1
- * On uncheck while still eligible: streak -= 1 (min 0)
- * If not eligible: streak = 0
+ * Rules:
+ *   1. The weather date must be within 7 days of yesterday — older dates
+ *      don't count (prevents bulk-backfilling to game the streak).
+ *   2. If `last_action_date` is already today, do nothing — only one
+ *      streak increment per calendar day.
+ *   3. Otherwise, increment streak by 1 and set `last_action_date` = today.
+ *
+ * Only called when `completed = true`.  Unchecking does not affect the streak.
  */
 export async function updateStreak(
   personId: string,
-  completed: boolean
+  weatherDate: string,
 ): Promise<number> {
+  const today = todayET();
   const yesterday = yesterdayET();
-  const year = yesterday.slice(0, 4);
-  const startDate = `${year}-01-01`;
 
-  // Fetch current streak from people table
-  const { data: person, error: pErr } = await supabase
+  // ── Guard: weather date must be within RECENCY_WINDOW of yesterday ──
+  const cutoff = daysAgo(yesterday, RECENCY_WINDOW);
+  if (weatherDate < cutoff || weatherDate > yesterday) {
+    // Too old or in the future — no streak credit
+    const current = await getCurrentStreak(personId);
+    return current;
+  }
+
+  // ── Fetch current streak + last_action_date ──
+  const { data, error } = await supabase
     .from('people')
-    .select('streak')
-    .eq('id', personId);
-  if (pErr) throw pErr;
-  const currentStreak = Number(person?.[0]?.streak) || 0;
+    .select('streak, last_action_date')
+    .eq('id', personId)
+    .single();
+  if (error) throw error;
 
-  // Fetch all checks for the year to determine eligibility
-  const { data: checks, error: cErr } = await supabase
-    .from('person_checks')
-    .select('d, completed')
-    .eq('person_id', personId)
-    .gte('d', startDate)
-    .lte('d', `${year}-12-31`);
-  if (cErr) throw cErr;
+  const currentStreak: number = data?.streak ?? -1;
+  const lastAction: string | null = data?.last_action_date ?? null;
 
-  const incompleteDates: string[] = [];
-  for (const c of checks ?? []) {
-    if (!c.completed) incompleteDates.push(c.d);
+  // ── Guard: already counted today ──
+  if (lastAction === today) {
+    return currentStreak;
   }
 
-  let streak: number;
+  // ── Increment streak and record today ──
+  const newStreak = currentStreak + 1;
 
-  if (!isEligible(incompleteDates, yesterday)) {
-    streak = 0;
-  } else if (completed) {
-    streak = currentStreak + 1;
-  } else {
-    streak = Math.max(0, currentStreak - 1);
-  }
-
-  // Persist to DB
   const { error: uErr } = await supabase
     .from('people')
-    .update({ streak })
+    .update({ streak: newStreak, last_action_date: today })
     .eq('id', personId);
   if (uErr) throw uErr;
 
-  return streak;
+  return newStreak;
+}
+
+/**
+ * Reset streaks for all people whose last action was >= INACTIVITY_LIMIT_DAYS ago.
+ * Called by the daily cron job (`/api/jobs/check-streaks`).
+ */
+export async function resetStaleStreaks(): Promise<number> {
+  const today = todayET();
+  const cutoff = daysAgo(today, INACTIVITY_LIMIT_DAYS);
+
+  // Reset anyone whose last_action_date is on or before the cutoff,
+  // or who has never performed an action (last_action_date IS NULL).
+  const { data, error } = await supabase
+    .from('people')
+    .update({ streak: -1 })
+    .or(`last_action_date.lte.${cutoff},last_action_date.is.null`)
+    .neq('streak', -1)
+    .select('id');
+  if (error) throw error;
+
+  return data?.length ?? 0;
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function getCurrentStreak(personId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('people')
+    .select('streak')
+    .eq('id', personId)
+    .single();
+  if (error) throw error;
+  return data?.streak ?? -1;
+}
+
+/** Return YYYY-MM-DD that is `n` days before `from`. */
+function daysAgo(from: string, n: number): string {
+  const d = new Date(from + 'T00:00:00');
+  d.setDate(d.getDate() - n);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }

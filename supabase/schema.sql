@@ -22,10 +22,11 @@ CREATE INDEX IF NOT EXISTS idx_locations_name ON locations (name);
 -- PEOPLE
 -- ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS people (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        TEXT NOT NULL,
-  location_id UUID NOT NULL REFERENCES locations (id) ON DELETE CASCADE,
-  streak      INTEGER NOT NULL DEFAULT 0,
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name             TEXT NOT NULL,
+  location_id      UUID NOT NULL REFERENCES locations (id) ON DELETE CASCADE,
+  streak           INTEGER NOT NULL DEFAULT -1,
+  last_action_date DATE,
   CONSTRAINT people_name_location_key UNIQUE (name, location_id)
 );
 

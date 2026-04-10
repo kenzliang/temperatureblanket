@@ -37,9 +37,9 @@ export function ProgressTracker({ progress }: ProgressTrackerProps) {
                   </span>
                 </span>
                 <div className="flex items-center gap-2">
-                  {p.streak > 0 && (
+                  {p.streak >= 0 && (
                     <span className="text-xs text-orange-600 dark:text-orange-400 font-medium" title="Current streak">
-                      {p.streak} day streak
+                      {p.streak === 0 ? 'new streak!' : `${p.streak} day streak`}
                     </span>
                   )}
                   <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">

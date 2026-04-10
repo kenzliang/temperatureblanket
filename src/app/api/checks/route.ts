@@ -81,10 +81,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
     if (error) throw error;
 
-    // Update streak incrementally after every toggle
-    const streak = await updateStreak(personId as string, completed as boolean);
+    // Only update streak when checking off (not unchecking)
+    let streak: number | undefined;
+    if (completed) {
+      streak = await updateStreak(personId as string, date as string);
+    }
 
-    return NextResponse.json({ ok: true, streak });
+    return NextResponse.json({ ok: true, ...(streak != null && { streak }) });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'checks POST failed' },
