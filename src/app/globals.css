@@ -57,13 +57,14 @@ input[type='checkbox'] {
   border-radius: 0.25rem;
   display: inline-block;
   cursor: pointer;
-  background-color: transparent;
+  background-color: white;
   vertical-align: middle;
   flex-shrink: 0;
 }
 
 /* Checked: show the knitting-yarn SVG as a background image */
 input[type='checkbox']:checked {
+  background-color: white;
   background-image: url('/knitting-yarn.svg');
   background-repeat: no-repeat;
   background-position: center;

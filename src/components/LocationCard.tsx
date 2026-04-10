@@ -1,6 +1,7 @@
 import { clsx } from 'clsx';
 import { WeatherIcon } from './WeatherIcon';
 import { Sparkline } from './Sparkline';
+import { getPersonColorMap, getYarnForTemp, contrastText } from '@/lib/yarn-colors';
 
 interface WeatherData {
   highTempF: number;
@@ -78,19 +79,34 @@ export function LocationCard({
       <div className="mt-3">
         <div className="label mb-2">People</div>
         <div className="flex flex-wrap gap-3">
-          {people.map((p) => (
-            <label
-              key={p.id}
-              className="inline-flex items-center gap-2 text-gray-900 dark:text-gray-100 cursor-pointer"
-            >
-              <input
-                type="checkbox"
-                checked={!!checks[p.id]}
-                onChange={(e) => onToggle(p.id, e.target.checked)}
-              />
-              <span className="font-medium">Completed — {p.name}</span>
-            </label>
-          ))}
+          {people.map((p) => {
+            const colorMap = getPersonColorMap(p.name);
+            const yarn = colorMap && weather ? getYarnForTemp(colorMap, weather.highTempF) : null;
+
+            return (
+              <label
+                key={p.id}
+                className={clsx(
+                  'inline-flex items-center gap-2 cursor-pointer rounded-lg px-3 py-1.5 transition-colors',
+                  !yarn && 'text-gray-900 dark:text-gray-100',
+                )}
+                style={yarn ? {
+                  backgroundColor: yarn.hex,
+                  color: contrastText(yarn.hex),
+                } : undefined}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!checks[p.id]}
+                  onChange={(e) => onToggle(p.id, e.target.checked)}
+                />
+                <span className="font-medium">{p.name}</span>
+                {yarn && (
+                  <span className="text-xs opacity-80">{yarn.label}</span>
+                )}
+              </label>
+            );
+          })}
           {people.length === 0 && (
             <span className="text-gray-400 dark:text-gray-500 text-sm">
               No people assigned
