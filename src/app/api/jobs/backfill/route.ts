@@ -8,11 +8,19 @@ export const maxDuration = 300;
 
 function checkCronAuth(req: NextRequest): NextResponse | null {
   if (process.env.NODE_ENV === 'development') return null;
+
+  const authHeader = req.headers.get('authorization') ?? '';
+  const [scheme] = authHeader.split(' ');
+
+  // Basic Auth — middleware already validated credentials
+  if (scheme === 'Basic') return null;
+
+  // Bearer token — validate against CRON_SECRET
   const secret = process.env.CRON_SECRET;
   if (!secret) {
     return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 });
   }
-  if (req.headers.get('authorization') !== `Bearer ${secret}`) {
+  if (authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   return null;

@@ -9,20 +9,29 @@ export const maxDuration = 60;
 // This endpoint is called daily by the Vercel cron job defined in vercel.json.
 // It can also be called manually with ?date=YYYY-MM-DD to backfill a single day.
 //
-// AUTH: Vercel cron requests include Authorization: Bearer <CRON_SECRET>.
-// Manual production calls must supply the same header.
-// In development (NODE_ENV=development), auth is skipped for convenience.
+// AUTH: accepts either:
+//   1. Bearer <CRON_SECRET> — Vercel cron / manual curl
+//   2. Basic Auth — browser (Fetch Now button); middleware already validated credentials
+// In development, auth is skipped entirely.
 
 function checkCronAuth(req: NextRequest): NextResponse | null {
   if (process.env.NODE_ENV === 'development') return null;
+
+  const authHeader = req.headers.get('authorization') ?? '';
+  const [scheme] = authHeader.split(' ');
+
+  // Basic Auth — middleware already validated user/pass before forwarding here
+  if (scheme === 'Basic') return null;
+
+  // Bearer token — validate against CRON_SECRET
   const secret = process.env.CRON_SECRET;
   if (!secret) {
     return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 });
   }
-  if (req.headers.get('authorization') !== `Bearer ${secret}`) {
+  if (authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  return null; // auth passed
+  return null;
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {

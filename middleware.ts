@@ -9,9 +9,14 @@ import { NextRequest, NextResponse } from 'next/server';
 // Workers polyfill). Do NOT import { Buffer } from 'buffer' — that fails in Edge.
 
 export function middleware(req: NextRequest): NextResponse {
-  // Cron job endpoints use Bearer token auth — skip Basic Auth for them
+  // Cron job endpoints: allow through if they have a valid Bearer token (Vercel cron)
+  // or valid Basic Auth (browser Fetch Now button). Reject if neither.
   if (req.nextUrl.pathname.startsWith('/api/jobs/')) {
-    return NextResponse.next();
+    const authHeader = req.headers.get('authorization') ?? '';
+    const [scheme] = authHeader.split(' ');
+    // Bearer token — let the route handler validate CRON_SECRET
+    if (scheme === 'Bearer') return NextResponse.next();
+    // Basic Auth — fall through to the normal Basic Auth check below
   }
 
   // Skip auth entirely in local development
