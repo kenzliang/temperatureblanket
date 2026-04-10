@@ -114,7 +114,9 @@ function formatShortDate(d: string): string {
 }
 
 export function IncompleteDates({ progress, onSelectDate }: IncompleteDatesProps) {
-  const withIncomplete = progress.filter((p) => p.incompleteDates.length > 0);
+  const withIncomplete = progress
+    .filter((p) => p.incompleteDates.length > 0)
+    .sort((a, b) => a.incompleteDates.length - b.incompleteDates.length);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   // Pick a random quip per person on mount; stable across re-renders, new on refresh
