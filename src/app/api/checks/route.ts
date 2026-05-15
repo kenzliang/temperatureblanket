@@ -84,7 +84,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Only update streak when checking off (not unchecking)
     let streak: number | undefined;
     if (completed) {
-      streak = await updateStreak(personId as string);
+      streak = await updateStreak(personId as string, date as string);
     }
 
     return NextResponse.json({ ok: true, ...(streak != null && { streak }) });

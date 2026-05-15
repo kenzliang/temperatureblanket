@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase/server';
-import { todayET } from '@/lib/dates';
+import { todayET, yesterdayET } from '@/lib/dates';
 
 /** After this many days of inactivity, the streak resets to -1. */
 export const INACTIVITY_LIMIT_DAYS = 2;
@@ -8,25 +8,39 @@ export const INACTIVITY_LIMIT_DAYS = 2;
  * Update a person's streak after they check off a date.
  *
  * Rules:
- *   1. If `last_action_date` is already today, do nothing — only one
+ *   1. Only called when `completed = true`. Unchecking does not affect the streak.
+ *   2. Only increments for recent dates (yesterday or today) — old backfills
+ *      do not inflate the streak.
+ *   3. If `last_action_date` is already today, do nothing — only one
  *      streak increment per calendar day.
- *   2. Otherwise, increment streak by 1 and set `last_action_date` = today.
- *
- * Only called when `completed = true`.  Unchecking does not affect the streak.
+ *   4. Otherwise, increment streak by 1 and set `last_action_date` = today.
  */
-export async function updateStreak(personId: string): Promise<number> {
+export async function updateStreak(
+  personId: string,
+  toggledDate: string
+): Promise<number> {
   const today = todayET();
+  const yesterday = yesterdayET();
+
+  // Only increment for recent dates — old backfills don't count
+  if (toggledDate !== today && toggledDate !== yesterday) {
+    // Fetch and return current streak without changing it
+    const { data } = await supabase
+      .from('people')
+      .select('streak')
+      .eq('id', personId);
+    return Number(data?.[0]?.streak) || 0;
+  }
 
   // ── Fetch current streak + last_action_date ──
   const { data, error } = await supabase
     .from('people')
     .select('streak, last_action_date')
-    .eq('id', personId)
-    .single();
+    .eq('id', personId);
   if (error) throw error;
 
-  const currentStreak: number = data?.streak ?? -1;
-  const lastAction: string | null = data?.last_action_date ?? null;
+  const currentStreak: number = Number(data?.[0]?.streak) ?? -1;
+  const lastAction: string | null = data?.[0]?.last_action_date ?? null;
 
   // ── Guard: already counted today ──
   if (lastAction === today) {
