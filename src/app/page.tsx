@@ -41,8 +41,14 @@ export default function HomePage() {
 
   function changeDate(newDate: string) {
     if (newDate === date) return;
+    // Apply the new date SYNCHRONOUSLY. The date picker is a controlled
+    // <input type="date"> (value={date}); deferring this update via setTimeout
+    // left the input bound to the OLD date for 150ms, so the open native
+    // calendar would snap back to the previous month and fight the user's
+    // selection. Update state now and fade the content back in afterward.
+    setDate(newDate);
     setTransitioning(true);
-    setTimeout(() => { setDate(newDate); setTransitioning(false); }, 150);
+    setTimeout(() => setTransitioning(false), 150);
   }
 
   // Swipe: left = forward, right = backward.

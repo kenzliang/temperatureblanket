@@ -44,18 +44,28 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     // Fetch locations from DB — adding a new location only needs a DB insert
     const locations = await getLocationsFromDb();
-    const errors: { location: string; error: string }[] = [];
 
-    for (const loc of locations) {
-      try {
-        await fetchAndStoreWeather(loc.id, loc.lat, loc.lon, d);
-      } catch (e: unknown) {
+    // Process locations CONCURRENTLY, not sequentially. Each location does
+    // network fetches (with retries/backoff) plus DB writes; run serially the
+    // total time is the SUM across locations, which can blow past the Vercel
+    // function timeout and leave later locations unwritten (this is what caused
+    // the 2026-06-10 gap — the last two alphabetical locations were never
+    // reached). allSettled also keeps one location's failure from affecting the
+    // others, so a single bad response still writes the rest.
+    const results = await Promise.allSettled(
+      locations.map((loc) => fetchAndStoreWeather(loc.id, loc.lat, loc.lon, d))
+    );
+
+    const errors: { location: string; error: string }[] = [];
+    results.forEach((res, i) => {
+      if (res.status === 'rejected') {
+        const reason = res.reason;
         errors.push({
-          location: loc.name,
-          error: e instanceof Error ? e.message : String(e),
+          location: locations[i].name,
+          error: reason instanceof Error ? reason.message : String(reason),
         });
       }
-    }
+    });
 
     if (errors.length > 0) {
       // 207 Multi-Status: some locations succeeded, some failed
