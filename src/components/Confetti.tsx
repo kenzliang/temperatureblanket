@@ -15,8 +15,8 @@ interface Piece {
   height: number;
 }
 
-function makePieces(): Piece[] {
-  return Array.from({ length: PIECE_COUNT }, () => ({
+function makePieces(count: number): Piece[] {
+  return Array.from({ length: count }, () => ({
     left: Math.random() * 100,
     delay: Math.random() * 0.4,
     duration: 2.2 + Math.random() * 1.3,
@@ -35,11 +35,12 @@ function makePieces(): Piece[] {
 // the initial render would produce different values on the server (SSR) vs.
 // the client (hydration), causing a hydration mismatch. Generating them after
 // mount means the first render (both server and client) is empty and matches.
-export function Confetti() {
+export function Confetti({ multiplier = 1 }: { multiplier?: number }) {
   const [pieces, setPieces] = useState<Piece[] | null>(null);
 
   useEffect(() => {
-    setPieces(makePieces());
+    setPieces(makePieces(PIECE_COUNT * multiplier));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!pieces) return null;
