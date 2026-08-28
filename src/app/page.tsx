@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CalendarHeatmap } from '@/components/CalendarHeatmap';
+import { Confetti } from '@/components/Confetti';
 import { ProgressTracker } from '@/components/ProgressTracker';
 import { IncompleteDates } from '@/components/IncompleteDates';
 import { DateNav } from '@/components/DateNav';
@@ -74,6 +75,7 @@ export default function HomePage() {
       className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100"
       {...swipeHandlers}
     >
+      <Confetti />
       <DateNav date={date} minDate={minDate} maxDate={maxDate} onChange={changeDate} />
 
       <div

@@ -1,3 +1,5 @@
+import { clsx } from 'clsx';
+
 interface PersonProgress {
   personId: string;
   personName: string;
@@ -27,18 +29,45 @@ export function ProgressTracker({ progress }: ProgressTrackerProps) {
       <div className="space-y-2.5">
         {progress.map((p) => {
           const pct = p.totalDays > 0 ? (p.completedDays / p.totalDays) * 100 : 0;
+          // Streak fire tiers: name catches fire past 10, the streak count
+          // joins in past 20, and past 50 the whole row goes obnoxious.
+          const nameOnFire = p.streak > 10;
+          const streakOnFire = p.streak >= 20;
+          const rowOnFire = p.streak >= 50;
           return (
-            <div key={p.personId}>
+            <div
+              key={p.personId}
+              className={clsx(rowOnFire && 'row-on-fire')}
+            >
               <div className="flex items-center justify-between text-sm mb-1">
-                <span className="font-medium text-gray-800 dark:text-gray-200">
+                <span
+                  className={clsx(
+                    'font-medium',
+                    nameOnFire ? 'name-on-fire' : 'text-gray-800 dark:text-gray-200'
+                  )}
+                >
+                  {nameOnFire && (
+                    <span className="flame-icon mr-0.5" aria-hidden="true">🔥</span>
+                  )}
                   {p.personName}
                   <span className="text-gray-400 dark:text-gray-500 text-xs ml-1">
                     ({p.locationName})
                   </span>
+                  {rowOnFire && (
+                    <span className="flame-icon ml-0.5" aria-hidden="true">🔥</span>
+                  )}
                 </span>
                 <div className="flex items-center gap-2">
                   {p.streak >= 0 && (
-                    <span className="text-xs text-orange-600 dark:text-orange-400 font-medium" title="Current streak">
+                    <span
+                      className={clsx(
+                        'text-xs font-medium',
+                        streakOnFire
+                          ? 'streak-on-fire'
+                          : 'text-orange-600 dark:text-orange-400'
+                      )}
+                      title="Current streak"
+                    >
                       {p.streak === 0 ? 'new streak!' : `${p.streak} day streak`}
                     </span>
                   )}
@@ -49,7 +78,10 @@ export function ProgressTracker({ progress }: ProgressTrackerProps) {
               </div>
               <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-300 ${progressColor(pct)}`}
+                  className={clsx(
+                    'h-full rounded-full transition-all duration-300',
+                    rowOnFire ? 'fire-bar' : progressColor(pct)
+                  )}
                   style={{ width: `${Math.min(pct, 100)}%` }}
                 />
               </div>
