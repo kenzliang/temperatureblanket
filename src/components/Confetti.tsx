@@ -27,8 +27,9 @@ function makePieces(): Piece[] {
   }));
 }
 
-// Plays once per page load — mounted unconditionally in page.tsx, so it
-// doesn't remount (and doesn't replay) on subsequent re-renders like date changes.
+// Mounted by page.tsx only while someone has a 30+ day streak, so it plays
+// once per such mount (e.g. on load, or when navigating into a date range
+// where that's true) rather than on every page load.
 //
 // Pieces are generated in an effect, not at render time: Math.random() during
 // the initial render would produce different values on the server (SSR) vs.

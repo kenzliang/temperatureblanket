@@ -69,13 +69,15 @@ export default function HomePage() {
   );
 
   const noData = !loading && weather.length === 0 && checks.length === 0 && !err;
+  // Confetti only when someone's actually earned it — a 30+ day streak.
+  const celebrate = stats?.progress?.some((p) => p.streak >= 30) ?? false;
 
   return (
     <div
       className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100"
       {...swipeHandlers}
     >
-      <Confetti />
+      {celebrate && <Confetti />}
       <DateNav date={date} minDate={minDate} maxDate={maxDate} onChange={changeDate} />
 
       <div
