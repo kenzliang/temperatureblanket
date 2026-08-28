@@ -60,6 +60,20 @@ scripts, etc.), those are not part of this project — ignore them.
   Sequential fetches with retries summed past the Vercel timeout and silently
   dropped the last locations (this caused the 2026-06-10 gap). Keep it parallel,
   and keep collecting per-location errors → respond `207` on partial failure.
+- **Any un-filtered `person_checks`/`daily_weather` query spanning a whole year
+  must paginate with `.range()`.** Supabase/PostgREST caps a single request at
+  a server-configured max row count (1000 by default) with no error — it just
+  silently truncates. `people × days` blows past 1000 well before year-end.
+  `/api/stats` uses a `fetchAllRows()` helper that pages until a page comes
+  back short; requires a stable `.order()` on the query or pages can skip/
+  overlap rows. `src/lib/local-db.ts` (local Postgres dev) implements
+  `.range()` too — keep it in sync if you add another paginated query.
+- **A person who stops participating is soft-hidden, not deleted.** `people.active`
+  (default `true`) is filtered to `active = true` everywhere people are queried
+  (`checks`, `stats`, and the daily-row creation in `weather.ts`). Setting it
+  `false` stops new `person_checks` rows and hides them from the UI while
+  keeping their history intact — set it via a direct `UPDATE` in the Supabase
+  SQL editor, the same way people/locations are added.
 
 ## Data backfill / repair
 
@@ -88,3 +102,18 @@ npm install      # if deps look stale
 npx tsc --noEmit
 npm run build
 ```
+
+## Agentic tooling (`.claude/`)
+
+- `/verify` — runs the checklist above.
+- `/backfill` — walks through the backfill job (see "Data backfill / repair"),
+  asks for a date range, and confirms before hitting prod.
+- `pitfall-reviewer` subagent — checks a diff against this repo's specific
+  previously-shipped bugs (ET/UTC dates, the `rained`/`!snowed` guard,
+  sequential-vs-parallel job fetches, `person_checks` upsert dedup, the date
+  picker snap-back). Invoke it before committing changes to `src/lib/dates.ts`,
+  `src/lib/weather.ts`, `src/app/api/jobs/*`, or `DateNav.tsx`/`page.tsx`.
+
+Unrelated files that show up in `git status` (Rekordbox scripts/XML, an old
+pre-Next.js starter scaffold) live in `archive/`, which is gitignored — leave
+them there.

@@ -144,11 +144,14 @@ export async function fetchAndStoreWeather(
   );
   if (wErr) throw wErr;
 
-  // Fetch all people at this location
+  // Fetch active people at this location — inactive people (no longer doing
+  // the project) don't get new person_checks rows created for them, though
+  // their existing history is left alone.
   const { data: people, error: pErr } = await supabase
     .from('people')
     .select('id')
-    .eq('location_id', locationId);
+    .eq('location_id', locationId)
+    .eq('active', true);
   if (pErr) throw pErr;
 
   if (people?.length) {

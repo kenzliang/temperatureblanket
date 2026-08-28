@@ -5,6 +5,28 @@ import { yesterdayET } from '@/lib/dates'; // still used for trend dates
 
 export const dynamic = 'force-dynamic';
 
+// Supabase/PostgREST caps each request at a server-configured max row count
+// (1000 by default). A year of person_checks or daily_weather easily exceeds
+// that (7 people * ~240 days ~= 1700 rows), so an un-paginated .select() here
+// silently truncates — which showed up as everyone's YTD total being stuck at
+// exactly 1000 rows / numPeople. Page through with .range() until a page comes
+// back short. Requires a stable .order() so pages don't overlap or skip rows.
+const PAGE_SIZE = 1000;
+
+async function fetchAllRows<T>(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const all: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await buildQuery(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    all.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+  }
+  return all;
+}
+
 // GET /api/stats?year=YYYY
 // Returns:
 //   calendar:  per-day summary (has weather?, avg temp, completion count)
@@ -21,22 +43,35 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const { data: people, error: pErr } = await supabase
       .from('people')
       .select('id, name, location_id, streak, locations ( id, name, state )')
+      .eq('active', true)
       .order('name');
     if (pErr) throw pErr;
 
-    const { data: allChecks, error: cErr } = await supabase
-      .from('person_checks')
-      .select('d, person_id, completed')
-      .gte('d', startDate)
-      .lte('d', endDate);
-    if (cErr) throw cErr;
+    const allChecks = await fetchAllRows<{ d: string; person_id: string; completed: boolean }>(
+      (from, to) =>
+        supabase
+          .from('person_checks')
+          .select('d, person_id, completed')
+          .gte('d', startDate)
+          .lte('d', endDate)
+          .order('d')
+          .range(from, to)
+    );
 
-    const { data: weatherRows, error: wErr } = await supabase
-      .from('daily_weather')
-      .select('d, high_temp_f, location_id, locations ( name, state )')
-      .gte('d', startDate)
-      .lte('d', endDate);
-    if (wErr) throw wErr;
+    const weatherRows = await fetchAllRows<{
+      d: string;
+      high_temp_f: number | null;
+      location_id: string;
+      locations: { name: string; state: string } | null;
+    }>((from, to) =>
+      supabase
+        .from('daily_weather')
+        .select('d, high_temp_f, location_id, locations ( name, state )')
+        .gte('d', startDate)
+        .lte('d', endDate)
+        .order('d')
+        .range(from, to)
+    );
 
     const totalPeople = (people ?? []).length;
 

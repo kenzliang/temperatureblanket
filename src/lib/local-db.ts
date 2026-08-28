@@ -71,6 +71,8 @@ class QueryBuilder {
   private _selectStr = '*';
   private _conditions: Array<[col: string, op: string, val: unknown]> = [];
   private _orderCol: string | null = null;
+  private _rangeFrom: number | null = null;
+  private _rangeTo: number | null = null;
   private _updateData: Row | null = null;
   private _pending: Promise<SelectResult> | null = null;
 
@@ -100,6 +102,13 @@ class QueryBuilder {
 
   order(col: string): this {
     this._orderCol = col;
+    return this;
+  }
+
+  // Inclusive row range, matching the Supabase JS client's .range(from, to).
+  range(from: number, to: number): this {
+    this._rangeFrom = from;
+    this._rangeTo = to;
     return this;
   }
 
@@ -160,6 +169,11 @@ class QueryBuilder {
     return this._pending.then(onfulfilled ?? undefined, onrejected ?? undefined);
   }
 
+  private _limitClause(): string {
+    if (this._rangeFrom == null || this._rangeTo == null) return '';
+    return `LIMIT ${this._rangeTo - this._rangeFrom + 1} OFFSET ${this._rangeFrom}`;
+  }
+
   // ── Core execution ──────────────────────────────────────────────────────────
   private async _execute(): Promise<SelectResult> {
     const client = await getPool().connect();
@@ -206,7 +220,7 @@ class QueryBuilder {
             : '';
 
         const order = this._orderCol ? `ORDER BY "${t}"."${this._orderCol}"` : '';
-        sql = `SELECT ${cols} FROM "${t}" ${where} ${order}`.trim();
+        sql = `SELECT ${cols} FROM "${t}" ${where} ${order} ${this._limitClause()}`.trim();
 
         const { rows } = await client.query(sql, paramValues);
         return { data: rows, error: null };
@@ -253,6 +267,7 @@ class QueryBuilder {
         joins,
         where,
         order,
+        this._limitClause(),
       ]
         .filter(Boolean)
         .join(' ');

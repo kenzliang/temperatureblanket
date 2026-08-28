@@ -21,6 +21,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const { data: people, error: pErr } = await supabase
       .from('people')
       .select('id, name, location_id, locations ( id, name, state, lat, lon )')
+      .eq('active', true)
       .order('name');
     if (pErr) throw pErr;
 

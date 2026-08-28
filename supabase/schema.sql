@@ -27,10 +27,12 @@ CREATE TABLE IF NOT EXISTS people (
   location_id      UUID NOT NULL REFERENCES locations (id) ON DELETE CASCADE,
   streak           INTEGER NOT NULL DEFAULT -1,
   last_action_date DATE,
+  active           BOOLEAN NOT NULL DEFAULT TRUE,
   CONSTRAINT people_name_location_key UNIQUE (name, location_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_people_location_id ON people (location_id);
+CREATE INDEX IF NOT EXISTS idx_people_active ON people (active);
 
 -- ────────────────────────────────────────────────
 -- DAILY WEATHER

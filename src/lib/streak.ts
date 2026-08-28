@@ -13,7 +13,15 @@ export const INACTIVITY_LIMIT_DAYS = 2;
  *      do not inflate the streak.
  *   3. If `last_action_date` is already today, do nothing — only one
  *      streak increment per calendar day.
- *   4. Otherwise, increment streak by 1 and set `last_action_date` = today.
+ *   4. Otherwise, continue the streak (+1) only if `last_action_date` is within
+ *      INACTIVITY_LIMIT_DAYS of `toggledDate`; if it's stale (or null), restart
+ *      at 0. This is computed here rather than trusted from the DB so that it
+ *      doesn't depend on the daily check-streaks cron having already run today —
+ *      that cron only resets stray streaks for people who never check in again;
+ *      it must NOT be required for correctness the moment someone does check in.
+ *      (Checking off "yesterday" — the app's default view — first thing in the
+ *      morning, before the ~7am ET cron fires, used to increment a streak that
+ *      should have reset.)
  */
 export async function updateStreak(
   personId: string,
@@ -47,8 +55,11 @@ export async function updateStreak(
     return currentStreak;
   }
 
-  // ── Increment streak and record today ──
-  const newStreak = currentStreak + 1;
+  // ── Continue the streak only if the last action was recent enough ──
+  const isContinuing =
+    lastAction != null &&
+    calendarDaysBetween(lastAction, toggledDate) < INACTIVITY_LIMIT_DAYS;
+  const newStreak = isContinuing ? currentStreak + 1 : 0;
 
   const { error: uErr } = await supabase
     .from('people')
@@ -90,4 +101,11 @@ function daysAgo(from: string, n: number): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+/** Number of calendar days between two YYYY-MM-DD dates (UTC midnight, so DST-safe). */
+function calendarDaysBetween(a: string, b: string): number {
+  const da = new Date(a + 'T00:00:00Z').getTime();
+  const db = new Date(b + 'T00:00:00Z').getTime();
+  return Math.round((db - da) / 86400000);
 }

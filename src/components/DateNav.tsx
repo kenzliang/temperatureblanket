@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { todayET, yesterdayET } from '@/lib/dates';
 
 interface DateNavProps {
@@ -13,6 +13,18 @@ interface DateNavProps {
 export function DateNav({ date, minDate, maxDate, onChange }: DateNavProps) {
   const canGoPrev = date > minDate;
   const canGoNext = date < maxDate;
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // The native calendar popup doesn't re-sync its displayed month when the
+  // bound `value` changes programmatically while it's still open (e.g. the
+  // user advances via the arrow buttons or quick-jump buttons without
+  // closing the popup first) — it can be left showing a stale month even
+  // though the input's value and max are already correct. Blurring closes
+  // it, so the next open always starts from the current value.
+  function jumpTo(d: string) {
+    inputRef.current?.blur();
+    onChange(d);
+  }
 
   function shiftDate(days: number) {
     const d = new Date(date + 'T00:00:00');
@@ -21,7 +33,7 @@ export function DateNav({ date, minDate, maxDate, onChange }: DateNavProps) {
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     const next = `${y}-${m}-${dd}`;
-    if (next >= minDate && next <= maxDate) onChange(next);
+    if (next >= minDate && next <= maxDate) jumpTo(next);
   }
 
   // Keyboard arrow navigation — re-registers each render so it always sees the latest date.
@@ -57,6 +69,7 @@ export function DateNav({ date, minDate, maxDate, onChange }: DateNavProps) {
               </svg>
             </button>
             <input
+              ref={inputRef}
               id="date-picker"
               type="date"
               className="input bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-100 dark:[color-scheme:dark]"
@@ -80,13 +93,13 @@ export function DateNav({ date, minDate, maxDate, onChange }: DateNavProps) {
         {/* Quick jump buttons */}
         <div className="flex gap-2 mt-2">
           <button
-            onClick={() => onChange(yesterdayET())}
+            onClick={() => jumpTo(yesterdayET())}
             className="text-xs px-2 py-1 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
           >
             Yesterday
           </button>
           <button
-            onClick={() => onChange(todayET())}
+            onClick={() => jumpTo(todayET())}
             className="text-xs px-2 py-1 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
           >
             Today
